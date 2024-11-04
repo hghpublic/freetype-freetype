@@ -32,6 +32,7 @@
 #include <freetype/internal/ftobjs.h>
 #include <freetype/internal/ftcalc.h>
 #include <freetype/fttrigon.h>
+#include <math.h>
 
 
   /* the Cordic shrink factor 0.858785336480436 * 2^32 */
@@ -416,35 +417,12 @@
   FT_EXPORT_DEF( FT_Fixed )
   FT_Vector_Length( FT_Vector*  vec )
   {
-    FT_Int     shift;
-    FT_Vector  v;
-
-
-    if ( !vec )
-      return 0;
-
-    v = *vec;
-
-    /* handle trivial cases */
-    if ( v.x == 0 )
-    {
-      return FT_ABS( v.y );
-    }
-    else if ( v.y == 0 )
-    {
-      return FT_ABS( v.x );
-    }
-
-    /* general case */
-    shift = ft_trig_prenorm( &v );
-    ft_trig_pseudo_polarize( &v );
-
-    v.x = ft_trig_downscale( v.x );
-
-    if ( shift > 0 )
-      return ( v.x + ( 1L << ( shift - 1 ) ) ) >> shift;
-
-    return (FT_Fixed)( (FT_UInt32)v.x << -shift );
+    // len * 65536 = sqrtf(x*x + y*y) * 65536 = sqrt((vx / 65536) * (vx / 65536) + (vy / 65536) * (vy / 65536)) * 65536
+    // = sqrt((vx*vx + vy*vy) / 2^32) * 65536
+    // = sqrt((vx*vx + vy*vy) / 2^32) * sqrt(2^32)
+    // = sqrt((vx*vx + vy*vy) / 2^32 * 2^32)
+    // = sqrt(vx*vx + vy*vy)
+    return (FT_UInt32)sqrtf((float)vec->x*(float)vec->x + (float)vec->y*(float)vec->y);
   }
 
 
