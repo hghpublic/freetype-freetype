@@ -239,3 +239,8 @@ macos meson:
     - meson setup build ${MESON_ARGS}
     - meson compile --verbose -C build
     - sudo meson install -C build
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+    - if: $CI_PIPELINE_SOURCE == 'push'
