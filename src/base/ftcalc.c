@@ -1056,8 +1056,7 @@
     return ( d_in + d_out - d_hypot ) < ( d_hypot >> 4 );
   }
 
-
-  FT_BASE_DEF( FT_Int32 )
+  FT_BASE_DEF( FT_Fixed )
   FT_MulAddFix( FT_Fixed*  s,
                 FT_Int32*  f,
                 FT_UInt    count )
@@ -1072,7 +1071,7 @@
     for ( i = 0; i < count; ++i )
       temp += (FT_Int64)s[i] * f[i];
 
-    return (FT_Int32)( ( temp + 0x8000 ) >> 16 );
+    return (FT_Fixed)( temp );
 #else
     temp.hi = 0;
     temp.lo = 0;
@@ -1105,9 +1104,7 @@
       FT_Add64( &temp, &multResult, &temp );
     }
 
-    /* Shift and round value. */
-    return (FT_Int32)( ( ( temp.hi << 16 ) | ( temp.lo >> 16 ) )
-                                     + ( 1 & ( temp.lo >> 15 ) ) );
+    return (FT_Fixed)( ( temp.hi << 16 ) | temp.lo );
 
 
 #endif /* !FT_INT64 */

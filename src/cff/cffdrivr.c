@@ -948,8 +948,7 @@
                                        itemStore, table_len );
   }
 
-
-  FT_CALLBACK_DEF( FT_Int )
+  FT_CALLBACK_DEF( FT_Fixed )
   cff_get_item_delta( FT_Face          face,        /* CFF_Face */
                       GX_ItemVarStore  itemStore,
                       FT_UInt          outerIndex,

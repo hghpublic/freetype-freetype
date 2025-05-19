@@ -23,8 +23,7 @@
 
 FT_BEGIN_HEADER
 
-
-  typedef FT_Int32  FT_ItemVarDelta;
+  typedef FT_Fixed FT_ItemVarDelta;
 
   typedef struct  GX_ItemVarDataRec_
   {
