@@ -340,6 +340,44 @@ FT_BEGIN_HEADER
 
   /**************************************************************************
    *
+   * HarfBuzz dynamic/callbacks calling convention.
+   *
+   *   Define this macro if the HarfBuzz library is using cdecl calling
+   *   convention
+   *
+   *   This option has no effect if not using harfbuzz mode 'dynamic' or
+   *   'callbacks'.
+   *
+   *   When this option is enabled, FreeType will consider loaded or 
+   *   injected HarfBuzz-related functions as __cdecl.
+   *
+   *   If you use a build system like cmake or the `configure` script,
+   *   options set by those programs have precedence, overwriting the value
+   *   here with the configured one.
+   */
+/* #define FT_CONFIG_OPTION_USE_HARFBUZZ_CALLING_CONVENTION_CDECL */
+
+  /**************************************************************************
+   *
+   * HarfBuzz dynamic/callbacks calling convention.
+   *
+   *   Define this macro if the HarfBuzz library is using stdcall calling
+   *   convention
+   *
+   *   This option has no effect if not using harfbuzz mode 'dynamic' or
+   *   'callbacks'.
+   *
+   *   When this option is enabled, FreeType will consider loaded or 
+   *   injected HarfBuzz-related functions as __stdcall.
+   *
+   *   If you use a build system like cmake or the `configure` script,
+   *   options set by those programs have precedence, overwriting the value
+   *   here with the configured one.
+   */
+/* #define FT_CONFIG_OPTION_USE_HARFBUZZ_CALLING_CONVENTION_STDCALL */
+
+  /**************************************************************************
+   *
    * Brotli support.
    *
    *   FreeType uses the Brotli library to provide support for decompressing

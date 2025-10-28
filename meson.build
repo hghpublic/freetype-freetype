@@ -402,6 +402,20 @@ if harfbuzz_opt == 'disabled' or harfbuzz_opt == 'auto'
   harfbuzz_opt = 'NO'
 endif
 
+if harfbuzz_opt == 'dynamic' or harfbuzz_opt == 'callbacks'
+  harfbuzz_calling_convention = get_option('harfbuzz_calling_convention')
+  if harfbuzz_calling_convention == 'cdecl'
+    ftoption_command += [
+      '--enable=FT_CONFIG_OPTION_USE_HARFBUZZ_CALLING_CONVENTION_CDECL',
+    ]
+  endif
+  if harfbuzz_calling_convention == 'stdcall'
+    ftoption_command += [
+      '--enable=FT_CONFIG_OPTION_USE_HARFBUZZ_CALLING_CONVENTION_STDCALL',
+    ]
+  endif
+endif
+
 # Brotli decompression support.
 brotli_dep = dependency('libbrotlidec',
   required: get_option('brotli'))

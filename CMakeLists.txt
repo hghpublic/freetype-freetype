@@ -211,6 +211,12 @@ cmake_dependent_option(FT_USE_HARFBUZZ_CALLBACKS
 cmake_dependent_option(FT_REQUIRE_HARFBUZZ
   "Require HarfBuzz for improving auto-hinting of OpenType fonts." OFF
   "NOT FT_DISABLE_HARFBUZZ" OFF)
+cmake_dependent_option(FT_USE_HARFBUZZ_CALLING_CONVENTION_CDECL
+  "use HarfBuzz library as cdecl." OFF
+  "NOT FT_DISABLE_HARFBUZZ" OFF)
+cmake_dependent_option(FT_USE_HARFBUZZ_CALLING_CONVENTION_STDCALL
+  "use HarfBuzz library as stdcall." OFF
+  "NOT FT_DISABLE_HARFBUZZ;NOT FT_USE_HARFBUZZ_CALLING_CONVENTION_CDECL" OFF)
 
 option(FT_DISABLE_BROTLI
   "Disable support of compressed WOFF2 fonts." OFF)
@@ -278,7 +284,6 @@ if (NOT FT_DISABLE_HARFBUZZ)
   elseif(FT_USE_HARFBUZZ_CALLBACKS)
     set(FT_HARFBUZZ_CALLBACKS_ENABLED TRUE)
   endif()
-
   if (FT_DYNAMIC_HARFBUZZ_ENABLED)
     message(STATUS "Enabled dynamic loading of HarfBuzz library at runtime.")
   elseif (FT_HARFBUZZ_CALLBACKS_ENABLED)
@@ -393,6 +398,15 @@ if (HARFBUZZ_FOUND OR FT_DYNAMIC_HARFBUZZ_ENABLED OR FT_HARFBUZZ_CALLBACKS_ENABL
       "/\\* +(#define +FT_CONFIG_OPTION_USE_HARFBUZZ_CALLBACKS) +\\*/" "\\1"
       FTOPTION_H "${FTOPTION_H}")
   endif ()
+  if (FT_USE_HARFBUZZ_CALLING_CONVENTION_CDECL)
+    string(REGEX REPLACE
+      "/\\* +(#define +FT_CONFIG_OPTION_USE_HARFBUZZ_CALLING_CONVENTION_CDECL) +\\*/" "\\1"
+      FTOPTION_H "${FTOPTION_H}")
+  elseif(FT_USE_HARFBUZZ_CALLING_CONVENTION_STDCALL)
+    string(REGEX REPLACE
+      "/\\* +(#define +FT_CONFIG_OPTION_USE_HARFBUZZ_CALLING_CONVENTION_STDCALL) +\\*/" "\\1"
+      FTOPTION_H "${FTOPTION_H}")
+  endif()
 endif ()
 if (BROTLIDEC_FOUND)
   string(REGEX REPLACE

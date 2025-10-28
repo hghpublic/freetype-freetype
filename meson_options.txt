@@ -30,6 +30,15 @@ option('harfbuzz',
                + ' if available, many glyphs not directly addressable'
                + ' by a font\'s character map will be hinted also')
 
+option('harfbuzz-calling-convention',
+  type: 'combo',
+  choices: ['auto', 'stdcall', 'cdecl'],
+  value: 'auto',
+  description: 'Calling-convention for HarfBuzz. Only used when using'
+               + ' harfbuzz=\'dynamic\' or harfbuzz=\'callbacks\'. If'
+               + ' unspecified or set to \'auto\', no specifier will'
+               + ' be added.')
+
 option('mmap',
   type: 'feature',
   value: 'auto',
