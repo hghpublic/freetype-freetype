@@ -205,7 +205,7 @@ FT_BEGIN_HEADER
                                   FT_UInt32  variant_selector );
 
 
-  typedef struct  FT_CMap_ClassRec_
+  typedef const struct  FT_CMap_ClassRec_
   {
     FT_ULong               size;
 
@@ -224,37 +224,6 @@ FT_BEGIN_HEADER
     FT_CMap_VariantCharListFunc   variantchar_list;
 
   } FT_CMap_ClassRec;
-
-
-#define FT_DECLARE_CMAP_CLASS( class_ )            \
-  FT_CALLBACK_TABLE const FT_CMap_ClassRec  class_;
-
-#define FT_DEFINE_CMAP_CLASS(       \
-          class_,                   \
-          size_,                    \
-          init_,                    \
-          done_,                    \
-          char_index_,              \
-          char_next_,               \
-          char_var_index_,          \
-          char_var_default_,        \
-          variant_list_,            \
-          charvariant_list_,        \
-          variantchar_list_ )       \
-  FT_CALLBACK_TABLE_DEF             \
-  const FT_CMap_ClassRec  class_ =  \
-  {                                 \
-    size_,                          \
-    init_,                          \
-    done_,                          \
-    char_index_,                    \
-    char_next_,                     \
-    char_var_index_,                \
-    char_var_default_,              \
-    variant_list_,                  \
-    charvariant_list_,              \
-    variantchar_list_               \
-  };
 
 
   /* create a new charmap and add it to charmap->face */
@@ -520,9 +489,9 @@ FT_BEGIN_HEADER
    */
   typedef struct  FT_ModuleRec_
   {
-    const FT_Module_Class*  clazz;
-    FT_Library              library;
-    FT_Memory               memory;
+    FT_Module_Class*  clazz;
+    FT_Library        library;
+    FT_Memory         memory;
 
   } FT_ModuleRec;
 
@@ -815,10 +784,10 @@ FT_BEGIN_HEADER
    */
   typedef struct  FT_DriverRec_
   {
-    FT_ModuleRec     root;
-    FT_Driver_Class  clazz;
-    FT_ListRec       faces_list;
-    FT_GlyphLoader   glyph_loader;
+    FT_ModuleRec      root;
+    FT_Driver_Class*  clazz;
+    FT_ListRec        faces_list;
+    FT_GlyphLoader    glyph_loader;
 
   } FT_DriverRec;
 
@@ -1050,188 +1019,6 @@ FT_BEGIN_HEADER
     raster_set_mode_,              \
     raster_render_,                \
     raster_done_                   \
-  };
-
-
-
-  /**************************************************************************
-   *
-   * @macro:
-   *   FT_DEFINE_GLYPH
-   *
-   * @description:
-   *   The struct will be allocated in the global scope (or the scope where
-   *   the macro is used).
-   */
-#define FT_DECLARE_GLYPH( class_ )                \
-  FT_CALLBACK_TABLE const FT_Glyph_Class  class_;
-
-#define FT_DEFINE_GLYPH(          \
-          class_,                 \
-          size_,                  \
-          format_,                \
-          init_,                  \
-          done_,                  \
-          copy_,                  \
-          transform_,             \
-          bbox_,                  \
-          prepare_ )              \
-  FT_CALLBACK_TABLE_DEF           \
-  const FT_Glyph_Class  class_ =  \
-  {                               \
-    size_,                        \
-    format_,                      \
-    init_,                        \
-    done_,                        \
-    copy_,                        \
-    transform_,                   \
-    bbox_,                        \
-    prepare_                      \
-  };
-
-
-  /**************************************************************************
-   *
-   * @macro:
-   *   FT_DECLARE_RENDERER
-   *
-   * @description:
-   *   Used to create a forward declaration of a FT_Renderer_Class struct
-   *   instance.
-   *
-   * @macro:
-   *   FT_DEFINE_RENDERER
-   *
-   * @description:
-   *   Used to initialize an instance of FT_Renderer_Class struct.
-   *
-   *   The struct will be allocated in the global scope (or the scope where
-   *   the macro is used).
-   */
-#define FT_DECLARE_RENDERER( class_ )               \
-  FT_EXPORT_VAR( const FT_Renderer_Class ) class_;
-
-#define FT_DEFINE_RENDERER(                  \
-          class_,                            \
-          flags_,                            \
-          size_,                             \
-          name_,                             \
-          version_,                          \
-          requires_,                         \
-          interface_,                        \
-          init_,                             \
-          done_,                             \
-          get_interface_,                    \
-          glyph_format_,                     \
-          render_glyph_,                     \
-          transform_glyph_,                  \
-          get_glyph_cbox_,                   \
-          set_mode_,                         \
-          raster_class_ )                    \
-  FT_CALLBACK_TABLE_DEF                      \
-  const FT_Renderer_Class  class_ =          \
-  {                                          \
-    FT_DEFINE_ROOT_MODULE( flags_,           \
-                           size_,            \
-                           name_,            \
-                           version_,         \
-                           requires_,        \
-                           interface_,       \
-                           init_,            \
-                           done_,            \
-                           get_interface_ )  \
-    glyph_format_,                           \
-                                             \
-    render_glyph_,                           \
-    transform_glyph_,                        \
-    get_glyph_cbox_,                         \
-    set_mode_,                               \
-                                             \
-    raster_class_                            \
-  };
-
-
-  /**************************************************************************
-   *
-   * @macro:
-   *   FT_DECLARE_MODULE
-   *
-   * @description:
-   *   Used to create a forward declaration of a FT_Module_Class struct
-   *   instance.
-   *
-   * @macro:
-   *   FT_DEFINE_MODULE
-   *
-   * @description:
-   *   Used to initialize an instance of an FT_Module_Class struct.
-   *
-   *   The struct will be allocated in the global scope (or the scope where
-   *   the macro is used).
-   *
-   * @macro:
-   *   FT_DEFINE_ROOT_MODULE
-   *
-   * @description:
-   *   Used to initialize an instance of an FT_Module_Class struct inside
-   *   another struct that contains it or in a function that initializes that
-   *   containing struct.
-   */
-#define FT_DECLARE_MODULE( class_ )  \
-  FT_CALLBACK_TABLE                  \
-  const FT_Module_Class  class_;
-
-#define FT_DEFINE_ROOT_MODULE(  \
-          flags_,               \
-          size_,                \
-          name_,                \
-          version_,             \
-          requires_,            \
-          interface_,           \
-          init_,                \
-          done_,                \
-          get_interface_ )      \
-  {                             \
-    flags_,                     \
-    size_,                      \
-                                \
-    name_,                      \
-    version_,                   \
-    requires_,                  \
-                                \
-    interface_,                 \
-                                \
-    init_,                      \
-    done_,                      \
-    get_interface_,             \
-  },
-
-#define FT_DEFINE_MODULE(         \
-          class_,                 \
-          flags_,                 \
-          size_,                  \
-          name_,                  \
-          version_,               \
-          requires_,              \
-          interface_,             \
-          init_,                  \
-          done_,                  \
-          get_interface_ )        \
-  FT_CALLBACK_TABLE_DEF           \
-  const FT_Module_Class class_ =  \
-  {                               \
-    flags_,                       \
-    size_,                        \
-                                  \
-    name_,                        \
-    version_,                     \
-    requires_,                    \
-                                  \
-    interface_,                   \
-                                  \
-    init_,                        \
-    done_,                        \
-    get_interface_,               \
   };
 
 

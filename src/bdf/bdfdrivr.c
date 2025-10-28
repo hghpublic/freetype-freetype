@@ -187,7 +187,7 @@ THE SOFTWARE.
 
 
   static
-  const FT_CMap_ClassRec  bdf_cmap_class =
+  FT_CMap_ClassRec  bdf_cmap_class =
   {
     sizeof ( BDF_CMapRec ),
     bdf_cmap_init,
@@ -984,7 +984,7 @@ THE SOFTWARE.
 
 
   FT_CALLBACK_TABLE_DEF
-  const FT_Driver_ClassRec  bdf_driver_class =
+  FT_Driver_Class  bdf_driver_class =
   {
     {
       FT_MODULE_FONT_DRIVER         |

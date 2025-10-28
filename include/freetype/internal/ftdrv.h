@@ -90,7 +90,7 @@ FT_BEGIN_HEADER
   /**************************************************************************
    *
    * @struct:
-   *   FT_Driver_ClassRec
+   *   FT_Driver_Class
    *
    * @description:
    *   The font driver class.  This structure mostly contains pointers to
@@ -162,7 +162,7 @@ FT_BEGIN_HEADER
    *   Most function pointers, with the exception of `load_glyph`, can be set
    *   to 0 to indicate a default behaviour.
    */
-  typedef struct  FT_Driver_ClassRec_
+  typedef const struct  FT_Driver_Class_
   {
     FT_Module_Class          root;
 
@@ -189,96 +189,7 @@ FT_BEGIN_HEADER
     FT_Size_RequestFunc      request_size;
     FT_Size_SelectFunc       select_size;
 
-  } FT_Driver_ClassRec, *FT_Driver_Class;
-
-
-  /**************************************************************************
-   *
-   * @macro:
-   *   FT_DECLARE_DRIVER
-   *
-   * @description:
-   *   Used to create a forward declaration of an FT_Driver_ClassRec struct
-   *   instance.
-   *
-   * @macro:
-   *   FT_DEFINE_DRIVER
-   *
-   * @description:
-   *   Used to initialize an instance of FT_Driver_ClassRec struct.
-   *
-   *   `ftinit.c` (ft_create_default_module_classes) already contains a
-   *   mechanism to call these functions for the default modules described in
-   *   `ftmodule.h`.
-   *
-   *   The struct will be allocated in the global scope (or the scope where
-   *   the macro is used).
-   */
-#define FT_DECLARE_DRIVER( class_ )  \
-  FT_CALLBACK_TABLE                  \
-  const FT_Driver_ClassRec  class_;
-
-#define FT_DEFINE_DRIVER(                    \
-          class_,                            \
-          flags_,                            \
-          size_,                             \
-          name_,                             \
-          version_,                          \
-          requires_,                         \
-          interface_,                        \
-          init_,                             \
-          done_,                             \
-          get_interface_,                    \
-          face_object_size_,                 \
-          size_object_size_,                 \
-          slot_object_size_,                 \
-          init_face_,                        \
-          done_face_,                        \
-          init_size_,                        \
-          done_size_,                        \
-          init_slot_,                        \
-          done_slot_,                        \
-          load_glyph_,                       \
-          get_kerning_,                      \
-          attach_file_,                      \
-          get_advances_,                     \
-          request_size_,                     \
-          select_size_ )                     \
-  FT_CALLBACK_TABLE_DEF                      \
-  const FT_Driver_ClassRec  class_ =         \
-  {                                          \
-    FT_DEFINE_ROOT_MODULE( flags_,           \
-                           size_,            \
-                           name_,            \
-                           version_,         \
-                           requires_,        \
-                           interface_,       \
-                           init_,            \
-                           done_,            \
-                           get_interface_ )  \
-                                             \
-    face_object_size_,                       \
-    size_object_size_,                       \
-    slot_object_size_,                       \
-                                             \
-    init_face_,                              \
-    done_face_,                              \
-                                             \
-    init_size_,                              \
-    done_size_,                              \
-                                             \
-    init_slot_,                              \
-    done_slot_,                              \
-                                             \
-    load_glyph_,                             \
-                                             \
-    get_kerning_,                            \
-    attach_file_,                            \
-    get_advances_,                           \
-                                             \
-    request_size_,                           \
-    select_size_                             \
-  };
+  } FT_Driver_Class, FT_Driver_ClassRec;
 
 
 FT_END_HEADER
