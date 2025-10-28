@@ -48,10 +48,10 @@ FT_BEGIN_HEADER
 
 #  else /* !FT_CONFIG_OPTION_USE_HARFBUZZ_DYNAMIC && !FT_CONFIG_OPTION_USE_HARFBUZZ_CALLBACKS*/
 
-#    define HB_EXTERN( ret, name, args ) \
+#    define FT_HB_EXTERN( ret, name, args ) \
               ret name args;
 #    include <freetype/ft-hb-decls.h>
-#    undef HB_EXTERN
+#    undef FT_HB_EXTERN
 
 #    define hb( x )  hb_ ## x
 

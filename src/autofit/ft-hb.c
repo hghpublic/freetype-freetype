@@ -131,14 +131,14 @@
       goto Fail;
 
     /* Load all symbols we use. */
-#define HB_EXTERN( ret, name, args )  \
+#define FT_HB_EXTERN( ret, name, args )  \
   {                                   \
     funcs->name = DLSYM( lib, name ); \
     if ( !funcs->name )               \
       goto Fail;                      \
   }
 #include <freetype/internal/ft-hb-decls.h>
-#undef HB_EXTERN
+#undef FT_HB_EXTERN
 
 #undef DLSYM
 

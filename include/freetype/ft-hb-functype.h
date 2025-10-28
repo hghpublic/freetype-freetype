@@ -26,18 +26,18 @@
 #if defined( FT_CONFIG_OPTION_USE_HARFBUZZ_DYNAMIC )   || \
     defined( FT_CONFIG_OPTION_USE_HARFBUZZ_CALLBACKS )
 
-#define HB_EXTERN( ret, name, args ) \
+#define FT_HB_EXTERN( ret, name, args ) \
   typedef ret (*ft_ ## name ## _func_t) args;
 #include <freetype/ft-hb-decls.h>
-#undef HB_EXTERN
+#undef FT_HB_EXTERN
 
 typedef struct ft_hb_funcs_t
 {
 
-    #define HB_EXTERN( ret, name, args ) \
+    #define FT_HB_EXTERN( ret, name, args ) \
   ft_ ## name ## _func_t  name;
 #include <freetype/ft-hb-decls.h>
-#undef HB_EXTERN
+#undef FT_HB_EXTERN
 
 } ft_hb_funcs_t;
 
