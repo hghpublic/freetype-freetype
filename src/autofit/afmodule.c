@@ -275,7 +275,16 @@
 
       return error;
     }
-
+#if defined( FT_CONFIG_OPTION_USE_HARFBUZZ )           && \
+    defined( FT_CONFIG_OPTION_USE_HARFBUZZ_CALLBACKS )
+#if defined ( FT_CONFIG_OPTION_USE_HARFBUZZ_DYNAMIC )
+#error "Can not set both dynamic harfbuzz and injected harfbuzz callbacks"
+#endif
+    else if ( !ft_strcmp( property_name, "harfbuzz-callbacks" ) )
+    {
+      module->hb_funcs = (ft_hb_funcs_t*)value;
+    }
+#endif
     FT_TRACE2(( "af_property_set: missing property `%s'\n",
                 property_name ));
     return FT_THROW( Missing_Property );
@@ -362,7 +371,17 @@
 
       return error;
     }
-
+#if defined( FT_CONFIG_OPTION_USE_HARFBUZZ )           && \
+    defined( FT_CONFIG_OPTION_USE_HARFBUZZ_CALLBACKS )
+#if defined ( FT_CONFIG_OPTION_USE_HARFBUZZ_DYNAMIC )
+#error "Can not set both dynamic harfbuzz and injected harfbuzz callbacks"
+#endif
+    else if ( !ft_strcmp( property_name, "harfbuzz-callbacks" ) )
+    {
+      ft_hb_funcs_t **val               = (ft_hb_funcs_t **)value;
+      *val = module->hb_funcs;
+    }
+#endif
     FT_TRACE2(( "af_property_get: missing property `%s'\n",
                 property_name ));
     return FT_THROW( Missing_Property );

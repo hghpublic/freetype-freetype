@@ -29,7 +29,8 @@ FT_BEGIN_HEADER
 
 #  include "ft-hb-types.h"
 
-#  ifdef FT_CONFIG_OPTION_USE_HARFBUZZ_DYNAMIC
+#  if defined( FT_CONFIG_OPTION_USE_HARFBUZZ_DYNAMIC )   || \
+      defined( FT_CONFIG_OPTION_USE_HARFBUZZ_CALLBACKS )
 
 #    define HB_EXTERN( ret, name, args ) \
               typedef ret (*ft_ ## name ## _func_t) args;
@@ -44,6 +45,8 @@ FT_BEGIN_HEADER
 #    undef HB_EXTERN
   } ft_hb_funcs_t;
 
+#  ifdef FT_CONFIG_OPTION_USE_HARFBUZZ_DYNAMIC
+
   struct  AF_ModuleRec_;
 
   FT_LOCAL( void )
@@ -52,9 +55,11 @@ FT_BEGIN_HEADER
   FT_LOCAL( void )
   ft_hb_funcs_done( struct AF_ModuleRec_  *af_module );
 
+#  endif /* !FT_CONFIG_OPTION_USE_HARFBUZZ_DYNAMIC */
+
 #    define hb( x )  globals->module->hb_funcs->hb_ ## x
 
-#  else /* !FT_CONFIG_OPTION_USE_HARFBUZZ_DYNAMIC */
+#  else /* !FT_CONFIG_OPTION_USE_HARFBUZZ_DYNAMIC && !FT_CONFIG_OPTION_USE_HARFBUZZ_CALLBACKS*/
 
 #    define HB_EXTERN( ret, name, args ) \
               ret name args;

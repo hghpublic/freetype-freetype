@@ -41,8 +41,9 @@ FT_BEGIN_HEADER
     FT_Bool       no_stem_darkening;
     FT_Int        darken_params[8];
 
-#if defined( FT_CONFIG_OPTION_USE_HARFBUZZ )         && \
-    defined( FT_CONFIG_OPTION_USE_HARFBUZZ_DYNAMIC )
+#if defined( FT_CONFIG_OPTION_USE_HARFBUZZ )               && \
+    ( defined( FT_CONFIG_OPTION_USE_HARFBUZZ_DYNAMIC )     || \
+      defined( FT_CONFIG_OPTION_USE_HARFBUZZ_CALLBACKS ) )
     ft_hb_funcs_t*  hb_funcs;
 #endif
 

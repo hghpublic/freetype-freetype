@@ -179,6 +179,14 @@
 
 #else /* !FT_CONFIG_OPTION_USE_HARFBUZZ_DYNAMIC */
 
+#if defined( FT_CONFIG_OPTION_USE_HARFBUZZ )         && \
+    defined( FT_CONFIG_OPTION_USE_HARFBUZZ_CALLBACKS )
+  FT_LOCAL_DEF( FT_Bool )
+  ft_hb_enabled( struct AF_FaceGlobalsRec_  *globals )
+  {
+    return globals->module->hb_funcs != NULL;
+  }
+#else /* !FT_CONFIG_OPTION_USE_HARFBUZZ_CALLBACKS*/
   FT_LOCAL_DEF( FT_Bool )
   ft_hb_enabled( struct AF_FaceGlobalsRec_  *globals )
   {
@@ -190,6 +198,8 @@
     return FALSE;
 #endif
   }
+
+#endif /* !FT_CONFIG_OPTION_USE_HARFBUZZ_CALLBACKS */
 
 #endif /* !FT_CONFIG_OPTION_USE_HARFBUZZ_DYNAMIC */
 

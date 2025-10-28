@@ -388,6 +388,13 @@ if not harfbuzz_dep.found() and \
   endif
 endif
 
+if harfbuzz_opt == 'callbacks'
+  ftoption_command += [
+      '--enable=FT_CONFIG_OPTION_USE_HARFBUZZ',
+      '--enable=FT_CONFIG_OPTION_USE_HARFBUZZ_CALLBACKS',
+    ]
+endif
+
 if harfbuzz_opt == 'disabled' or harfbuzz_opt == 'auto'
   harfbuzz_opt = 'NO'
 endif

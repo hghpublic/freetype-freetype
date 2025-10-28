@@ -205,6 +205,9 @@ option(FT_DISABLE_HARFBUZZ
 cmake_dependent_option(FT_DYNAMIC_HARFBUZZ
   "Load HarfBuzz library dynamically at runtime, if possible." ON
   "NOT FT_DISABLE_HARFBUZZ" OFF)
+cmake_dependent_option(FT_USE_HARFBUZZ_CALLBACKS
+  "Let HarfBuzz library inject callback methods at runtime." OFF
+  "NOT FT_DISABLE_HARFBUZZ;NOT FT_DYNAMIC_HARFBUZZ" OFF)
 cmake_dependent_option(FT_REQUIRE_HARFBUZZ
   "Require HarfBuzz for improving auto-hinting of OpenType fonts." OFF
   "NOT FT_DISABLE_HARFBUZZ" OFF)
@@ -272,10 +275,14 @@ if (NOT FT_DISABLE_HARFBUZZ)
         endif()
       endif()
     endif()
+  elseif(FT_USE_HARFBUZZ_CALLBACKS)
+    set(FT_HARFBUZZ_CALLBACKS_ENABLED TRUE)
   endif()
 
   if (FT_DYNAMIC_HARFBUZZ_ENABLED)
     message(STATUS "Enabled dynamic loading of HarfBuzz library at runtime.")
+  elseif (FT_HARFBUZZ_CALLBACKS_ENABLED)
+    message(STATUS "Enable HarfBuzz to inject callbacks into FreeType.")
   elseif (FT_REQUIRE_HARFBUZZ)
     find_package(HarfBuzz ${HARFBUZZ_MIN_VERSION} REQUIRED)
   else ()
@@ -373,13 +380,17 @@ if (PNG_FOUND)
     "/\\* +(#define +FT_CONFIG_OPTION_USE_PNG) +\\*/" "\\1"
     FTOPTION_H "${FTOPTION_H}")
 endif ()
-if (HARFBUZZ_FOUND OR FT_DYNAMIC_HARFBUZZ_ENABLED)
+if (HARFBUZZ_FOUND OR FT_DYNAMIC_HARFBUZZ_ENABLED OR FT_HARFBUZZ_CALLBACKS_ENABLED)
   string(REGEX REPLACE
     "/\\* +(#define +FT_CONFIG_OPTION_USE_HARFBUZZ) +\\*/" "\\1"
     FTOPTION_H "${FTOPTION_H}")
   if (FT_DYNAMIC_HARFBUZZ_ENABLED)
     string(REGEX REPLACE
       "/\\* +(#define +FT_CONFIG_OPTION_USE_HARFBUZZ_DYNAMIC) +\\*/" "\\1"
+      FTOPTION_H "${FTOPTION_H}")
+  elseif (FT_HARFBUZZ_CALLBACKS_ENABLED)
+    string(REGEX REPLACE
+      "/\\* +(#define +FT_CONFIG_OPTION_USE_HARFBUZZ_CALLBACKS) +\\*/" "\\1"
       FTOPTION_H "${FTOPTION_H}")
   endif ()
 endif ()
@@ -572,7 +583,7 @@ if (FT_DYNAMIC_HARFBUZZ_ENABLED AND FT_NEED_LIBDL)
   target_link_libraries(freetype PRIVATE dl)
   list(APPEND PKGCONFIG_LIBS_PRIVATE " -ldl")
 endif ()
-if (HarfBuzz_FOUND AND (NOT FT_DYNAMIC_HARFBUZZ_ENABLED))
+if (HarfBuzz_FOUND AND (NOT FT_DYNAMIC_HARFBUZZ_ENABLED) AND (NOT FT_HARFBUZZ_CALLBACKS_ENABLED))
   target_link_libraries(freetype PRIVATE HarfBuzz::HarfBuzz)
   list(APPEND PKGCONFIG_REQUIRES_PRIVATE "harfbuzz >= ${HARFBUZZ_MIN_VERSION}")
 endif ()

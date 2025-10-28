@@ -441,7 +441,7 @@ fi
 # check for system libharfbuzz
 
 AC_ARG_WITH([harfbuzz],
-  [AS_HELP_STRING([--with-harfbuzz=@<:@yes|dynamic|no|auto@:>@],
+  [AS_HELP_STRING([--with-harfbuzz=@<:@yes|dynamic|no|callbacks|auto@:>@],
                   [improve auto-hinting of OpenType fonts @<:@default=auto@:>@])],
   [], [with_harfbuzz=auto])
 
@@ -504,6 +504,14 @@ if test x"$have_harfbuzz" = xno; then
       fi
       ;;
     esac
+  fi
+
+
+have_harfbuzz_callbacks=no
+if test x"$have_harfbuzz" = xno; then
+  if test x"$with_harfbuzz" = xcallbacks; then
+    have_harfbuzz_callbacks=yes
+    have_harfbuzz="yes (callbacks)"
   fi
 fi
 
@@ -1164,6 +1172,11 @@ if test "$have_harfbuzz_dynamic" != no; then
   ftoption_set FT_CONFIG_OPTION_USE_HARFBUZZ_DYNAMIC
 else
   ftoption_unset FT_CONFIG_OPTION_USE_HARFBUZZ_DYNAMIC
+fi
+if test "$have_harfbuzz_callbacks" != no; then
+  ftoption_set FT_CONFIG_OPTION_USE_HARFBUZZ_CALLBACKS
+else
+  ftoption_unset FT_CONFIG_OPTION_USE_HARFBUZZ_CALLBACKS
 fi
 if test "$have_brotli" != no; then
   CFLAGS="$CFLAGS $BROTLI_CFLAGS"

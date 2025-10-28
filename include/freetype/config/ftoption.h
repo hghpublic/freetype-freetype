@@ -317,6 +317,26 @@ FT_BEGIN_HEADER
    */
 /* #define FT_CONFIG_OPTION_USE_HARFBUZZ_DYNAMIC */
 
+  /**************************************************************************
+   *
+   * HarfBuzz callbacks support.
+   *
+   *   Define this macro if you want the HarfBuzz library to inject callback
+   *   functions to FreeType
+   *
+   *   This option has no effect if `FT_CONFIG_OPTION_USE_HARFBUZZ` is not
+   *   defined.
+   *
+   *   When this option is enabled, FreeType will not load or link to the 
+   *   HarfBuzz library. Instead, the HarfBuzz library is expected to set
+   *   use property 'harfbuzz-callbacks' to pass callback functions into 
+   *   FreeType.
+   *
+   *   If you use a build system like cmake or the `configure` script,
+   *   options set by those programs have precedence, overwriting the value
+   *   here with the configured one.
+   */
+/* #define FT_CONFIG_OPTION_USE_HARFBUZZ_CALLBACKS */
 
   /**************************************************************************
    *
