@@ -137,7 +137,7 @@
     if ( !funcs->name )               \
       goto Fail;                      \
   }
-#include "ft-hb-decls.h"
+#include <freetype/internal/ft-hb-decls.h>
 #undef HB_EXTERN
 
 #undef DLSYM

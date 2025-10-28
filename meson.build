@@ -183,6 +183,9 @@ ft2_public_headers = files([
   'include/freetype/ttnameid.h',
   'include/freetype/tttables.h',
   'include/freetype/tttags.h',
+  'include/freetype/ft-hb-types.h',
+  'include/freetype/ft-hb-decls.h',
+  'include/freetype/ft-hb-functype.h'
 ])
 
 ft2_config_headers = files([
