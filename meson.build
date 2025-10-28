@@ -393,9 +393,9 @@ endif
 
 if harfbuzz_opt == 'callbacks'
   ftoption_command += [
-      '--enable=FT_CONFIG_OPTION_USE_HARFBUZZ',
-      '--enable=FT_CONFIG_OPTION_USE_HARFBUZZ_CALLBACKS',
-    ]
+    '--enable=FT_CONFIG_OPTION_USE_HARFBUZZ',
+    '--enable=FT_CONFIG_OPTION_USE_HARFBUZZ_CALLBACKS',
+  ]
 endif
 
 if harfbuzz_opt == 'disabled' or harfbuzz_opt == 'auto'
