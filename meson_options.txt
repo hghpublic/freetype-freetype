@@ -30,7 +30,7 @@ option('harfbuzz',
                + ' if available, many glyphs not directly addressable'
                + ' by a font\'s character map will be hinted also')
 
-option('harfbuzz-calling-convention',
+option('harfbuzz_calling_convention',
   type: 'combo',
   choices: ['auto', 'stdcall', 'cdecl'],
   value: 'auto',
