@@ -21,6 +21,10 @@ DELDIR := rm -rf
 CAT    := cat
 SEP    := /
 
+# This is used for `make dist'
+#
+TAR_CHF_    := @TAR_CHF_@
+
 # This is used for `make refdoc' and `make refdoc-venv'
 #
 PYTHON := @PYTHON@

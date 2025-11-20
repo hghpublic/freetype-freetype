@@ -1015,6 +1015,11 @@ esac
 
 AX_PTHREAD([have_pthread=yes], [have_pthread=no])
 
+# Check for tar for "make dist"
+FT_PROG_TAR([gnutar gtar bsdtar tar pax cpio])
+TAR_CHF_="${ft_tar_chf_}"
+AC_SUBST([TAR_CHF_])
+
 # Check for Python and docwriter
 PYTHON_MIN_VERSION=3.5
 have_py3=no
