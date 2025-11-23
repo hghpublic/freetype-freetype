@@ -229,20 +229,22 @@ work :=
 # Not to be run by a normal user -- there are no attempts to make it
 # generic.
 
+TAR_CHF_ ?= tar --format=ustar -chf - $${tardir}
+
 dist:
 	-rm -rf tmp
 	rm -f freetype-$(version).tar.gz
 	rm -f freetype-$(version).tar.xz
 	rm -f ft$(winversion).zip
 
-	for d in `find . -wholename '*/.git' -prune \
+	for d in `find . -name '.git' -prune \
 	                 -o -type f \
 	                 -o -print` ; do \
 	  mkdir -p tmp/$$d ; \
 	done ;
 
 	currdir=`pwd` ; \
-	for f in `find . -wholename '*/.git' -prune \
+	for f in `find . -name '.git' -prune \
 	                 -o -name .gitattributes \
 	                 -o -name .gitignore \
 	                 -o -name .gitlab-ci.yml \
@@ -259,10 +261,8 @@ dist:
 
 	mv tmp freetype-$(version)
 
-	tar --format=ustar -chf - freetype-$(version) \
-	| gzip -9 -c > freetype-$(version).tar.gz
-	tar --format=ustar -chf - freetype-$(version) \
-	| xz -c > freetype-$(version).tar.xz
+	tardir=freetype-$(version) && $(TAR_CHF_) | gzip -9 -c > freetype-$(version).tar.gz
+	tardir=freetype-$(version) && $(TAR_CHF_) | xz -c > freetype-$(version).tar.xz
 
 	@# Use CR/LF for zip files.
 	zip -lr9 ft$(winversion).zip freetype-$(version)
