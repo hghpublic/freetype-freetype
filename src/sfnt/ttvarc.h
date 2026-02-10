@@ -129,6 +129,7 @@ FT_BEGIN_HEADER
     FT_UInt32  axis_indices_index;
     FT_UInt    num_axis_values;
     FT_Fixed*  axis_values;          /* Normalized coordinates (F2DOT14) */
+    FT_Bool    axis_values_on_heap;  /* TRUE if axis_values needs FT_FREE */
     FT_UInt32  axis_values_var_index;
 
     /* Transform variation */
@@ -263,6 +264,16 @@ FT_BEGIN_HEADER
     /* Used when RESET_UNSPECIFIED_AXES is not set at depth 1 */
     FT_Fixed*  font_coords;
     FT_UInt    num_font_coords;
+
+    /* Reusable buffers to avoid per-component allocations */
+    FT_Fixed*  axis_values_buffer;
+    FT_UInt    axis_values_buffer_size;
+    FT_Fixed*  deltas_buffer;
+    FT_UInt    deltas_buffer_size;
+    FT_Fixed*  coords_buffer;
+    FT_UInt    coords_buffer_size;
+    FT_UInt*   indices_buffer;
+    FT_UInt    indices_buffer_size;
 
   } TT_VarcContextRec, *TT_VarcContext;
 

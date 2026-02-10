@@ -61,6 +61,12 @@
           ( (FT_Byte*)(p) >= (FT_Byte*)varc->table &&                        \
             (FT_Byte*)(p) + (size) <= (FT_Byte*)varc->table + varc->table_size )
 
+  /* Stack allocation limits for performance */
+#define VARC_STACK_AXIS_COUNT      64
+#define VARC_STACK_DELTA_COUNT     128
+#define VARC_STACK_COORD_COUNT     64
+#define VARC_STACK_INDICES_COUNT   64
+
 
   /**************************************************************************
    *
@@ -563,7 +569,9 @@
                            TT_Varc            varc,
                            FT_Byte**          p,
                            FT_Byte*           limit,
-                           TT_VarcComponent   component )
+                           TT_VarcComponent   component,
+                           FT_Fixed*          axis_values_buffer,
+                           FT_UInt            axis_values_buffer_size )
   {
     FT_Error   error;
     FT_UInt32  flags32;
@@ -746,11 +754,20 @@
 
       if ( axis_count > 0 )
       {
-        FT_UInt  j;  /* Declare here for use both in loop and after */
+        FT_UInt    j;  /* Declare here for use both in loop and after */
 
-        /* Allocate axis values array */
-        if ( FT_NEW_ARRAY( component->axis_values, axis_count ) )
-          return error;
+        /* Use caller's stack buffer for small arrays, heap for large */
+        if ( axis_count <= axis_values_buffer_size )
+        {
+          component->axis_values = axis_values_buffer;
+          component->axis_values_on_heap = FALSE;
+        }
+        else
+        {
+          if ( FT_NEW_ARRAY( component->axis_values, axis_count ) )
+            return error;
+          component->axis_values_on_heap = TRUE;
+        }
 
         /* Read axis values from TupleValues (Packed Deltas format) */
         i = 0;
@@ -922,7 +939,7 @@
     return FT_Err_Ok;
 
   Fail:
-    if ( component->axis_values )
+    if ( component->axis_values && component->axis_values_on_heap )
       FT_FREE( component->axis_values );
     return error;
   }
@@ -950,7 +967,7 @@
     FT_Memory  memory = face->root.memory;
 
 
-    if ( component->axis_values )
+    if ( component->axis_values && component->axis_values_on_heap )
       FT_FREE( component->axis_values );
   }
 
@@ -1374,6 +1391,9 @@
     FT_Byte*  tuple_data;
     FT_UInt   tuple_size;
     FT_UInt   i;
+    FT_Fixed  stack_coords[VARC_STACK_COORD_COUNT];
+    FT_Int64  stack_accumulators[VARC_STACK_DELTA_COUNT];
+    FT_Int32  stack_all_deltas[VARC_STACK_DELTA_COUNT * 16];  /* deltas * regions */
 
 
     FT_UNUSED( face );
@@ -1487,16 +1507,26 @@
       {
         num_coords = master->num_axis;
 
-        if ( FT_NEW_ARRAY( current_coords, num_coords ) )
+        if ( num_coords <= VARC_STACK_COORD_COUNT )
         {
-          num_coords = 0;
+          current_coords = stack_coords;
         }
         else
+        {
+          if ( FT_NEW_ARRAY( current_coords, num_coords ) )
+          {
+            num_coords = 0;
+          }
+        }
+
+        if ( num_coords > 0 )
         {
           error = FT_Get_Var_Blend_Coordinates( (FT_Face)face, num_coords, current_coords );
           if ( error )
           {
-            FT_FREE( current_coords );
+            if ( current_coords != stack_coords )
+              FT_FREE( current_coords );
+            current_coords = NULL;
             num_coords = 0;
           }
         }
@@ -1507,10 +1537,17 @@
     /* Allocate 64-bit accumulators for each delta */
     FT_Int64*  accumulators = NULL;
 
-    if ( FT_NEW_ARRAY( accumulators, num_deltas ) )
+    if ( num_deltas <= VARC_STACK_DELTA_COUNT )
     {
-      error = FT_THROW( Out_Of_Memory );
-      goto Cleanup;
+      accumulators = stack_accumulators;
+    }
+    else
+    {
+      if ( FT_NEW_ARRAY( accumulators, num_deltas ) )
+      {
+        error = FT_THROW( Out_Of_Memory );
+        goto Cleanup;
+      }
     }
 
     /* Initialize accumulators to zero */
@@ -1542,10 +1579,17 @@
 
 
     /* Allocate space for all deltas */
-    if ( FT_NEW_ARRAY( all_deltas, total_deltas ) )
+    if ( total_deltas <= VARC_STACK_DELTA_COUNT * 16 )
     {
-      error = FT_THROW( Out_Of_Memory );
-      goto Cleanup;
+      all_deltas = stack_all_deltas;
+    }
+    else
+    {
+      if ( FT_NEW_ARRAY( all_deltas, total_deltas ) )
+      {
+        error = FT_THROW( Out_Of_Memory );
+        goto Cleanup;
+      }
     }
 
     /* Read all deltas from TupleValues */
@@ -1554,8 +1598,10 @@
                                        &bytes_consumed );
     if ( error )
     {
-      FT_FREE( all_deltas );
-      FT_FREE( accumulators );
+      if ( all_deltas != stack_all_deltas )
+        FT_FREE( all_deltas );
+      if ( accumulators != stack_accumulators )
+        FT_FREE( accumulators );
       goto Cleanup;
     }
     /* Parse regionIndices and accumulate scaled deltas */
@@ -1666,7 +1712,8 @@
     }
 
     /* Free the flat delta array */
-    FT_FREE( all_deltas );
+    if ( all_deltas != stack_all_deltas )
+      FT_FREE( all_deltas );
 
     /* Convert 64-bit accumulators back to plain integers with rounding and >> 16 */
     for ( i = 0; i < num_deltas; i++ )
@@ -1688,12 +1735,13 @@
     }
 
     /* Free accumulators */
-    FT_FREE( accumulators );
+    if ( accumulators != stack_accumulators )
+      FT_FREE( accumulators );
 
     error = FT_Err_Ok;
 
   Cleanup:
-    if ( current_coords )
+    if ( current_coords && current_coords != stack_coords )
       FT_FREE( current_coords );
 
     return error;
@@ -1887,6 +1935,7 @@
   {
 #ifdef TT_CONFIG_OPTION_GX_VAR_SUPPORT
     FT_Error  error;
+    FT_Fixed  stack_deltas[VARC_STACK_DELTA_COUNT];
     FT_Fixed* deltas = NULL;
     FT_UInt   i;
     FT_Memory memory = face->root.memory;
@@ -1896,9 +1945,16 @@
       return;
 
 
-    /* Allocate array for deltas tuple */
-    if ( FT_NEW_ARRAY( deltas, component->num_axis_values ) )
-      return;
+    /* Use stack allocation for small arrays, heap for large */
+    if ( component->num_axis_values <= VARC_STACK_DELTA_COUNT )
+    {
+      deltas = stack_deltas;
+    }
+    else
+    {
+      if ( FT_NEW_ARRAY( deltas, component->num_axis_values ) )
+        return;
+    }
 
     /* Get tuple of deltas from MultiItemVariationStore */
     error = tt_varc_get_item_deltas( face, varc,
@@ -1923,7 +1979,8 @@
       }
     }
 
-    FT_FREE( deltas );
+    if ( deltas != stack_deltas )
+      FT_FREE( deltas );
 #else
     FT_UNUSED( face );
     FT_UNUSED( varc );
@@ -1957,6 +2014,7 @@
   {
 #ifdef TT_CONFIG_OPTION_GX_VAR_SUPPORT
     FT_Error  error;
+    FT_Fixed  stack_deltas[VARC_STACK_DELTA_COUNT];
     FT_Fixed* deltas = NULL;
     FT_UInt   num_deltas = 0;
     FT_UInt   delta_index = 0;
@@ -1981,9 +2039,16 @@
       return;
 
 
-    /* Allocate array for deltas tuple */
-    if ( FT_NEW_ARRAY( deltas, num_deltas ) )
-      return;
+    /* Use stack allocation for small arrays, heap for large */
+    if ( num_deltas <= VARC_STACK_DELTA_COUNT )
+    {
+      deltas = stack_deltas;
+    }
+    else
+    {
+      if ( FT_NEW_ARRAY( deltas, num_deltas ) )
+        return;
+    }
 
     /* Get tuple of deltas from MultiItemVariationStore */
     error = tt_varc_get_item_deltas( face, varc,
@@ -2066,7 +2131,8 @@
       }
     }
 
-    FT_FREE( deltas );
+    if ( deltas != stack_deltas )
+      FT_FREE( deltas );
 #else
     FT_UNUSED( face );
     FT_UNUSED( varc );
@@ -2533,6 +2599,10 @@
     FT_Bool             context_owner = FALSE;
     FT_Memory           memory = face->root.memory;
     TT_GlyphSlot        slot = (TT_GlyphSlot)glyph_slot;
+    FT_Fixed            stack_saved_coords[VARC_STACK_COORD_COUNT];
+    FT_Fixed            stack_new_coords[VARC_STACK_COORD_COUNT];
+    FT_UInt             stack_axis_indices[VARC_STACK_INDICES_COUNT];
+    FT_Fixed            stack_axis_values[VARC_STACK_AXIS_COUNT];
 
 
 
@@ -2606,7 +2676,8 @@
       FT_Vector            offset;
       FT_UInt              i;
       /* Parse component */
-      error = tt_varc_parse_component( face, varc, &p, limit, &component );
+      error = tt_varc_parse_component( face, varc, &p, limit, &component,
+                                       stack_axis_values, VARC_STACK_AXIS_COUNT );
       if ( error )
       {
         /* Skip malformed component and continue with others */
@@ -2649,6 +2720,7 @@
       FT_Fixed*  saved_coords = NULL;
       FT_UInt    num_coords = 0;
       FT_Fixed*  new_coords = NULL;
+      FT_Bool    coords_on_heap = FALSE;
 
 
 #ifdef TT_CONFIG_OPTION_GX_VAR_SUPPORT
@@ -2665,19 +2737,33 @@
 
         num_coords = master->num_axis;
         /* Allocate arrays for old and new coordinates */
-        if ( FT_NEW_ARRAY( saved_coords, num_coords ) ||
-             FT_NEW_ARRAY( new_coords, num_coords ) )
+        if ( num_coords <= VARC_STACK_COORD_COUNT )
         {
-          FT_FREE( saved_coords );
-          goto Skip_Axis_Override;
+          saved_coords = stack_saved_coords;
+          new_coords = stack_new_coords;
+          coords_on_heap = FALSE;
+        }
+        else
+        {
+          if ( FT_NEW_ARRAY( saved_coords, num_coords ) ||
+               FT_NEW_ARRAY( new_coords, num_coords ) )
+          {
+            if ( saved_coords )
+              FT_FREE( saved_coords );
+            goto Skip_Axis_Override;
+          }
+          coords_on_heap = TRUE;
         }
 
         /* Get current normalized coordinates */
         error = FT_Get_Var_Blend_Coordinates( (FT_Face)face, num_coords, saved_coords );
         if ( error )
         {
-          FT_FREE( saved_coords );
-          FT_FREE( new_coords );
+          if ( coords_on_heap )
+          {
+            FT_FREE( saved_coords );
+            FT_FREE( new_coords );
+          }
           goto Skip_Axis_Override;
         }
 
@@ -2713,11 +2799,21 @@
           FT_UInt   i;
 
           /* Allocate array for axis indices */
-          if ( FT_NEW_ARRAY( axis_indices, component.num_axis_values ) )
+          if ( component.num_axis_values <= VARC_STACK_INDICES_COUNT )
           {
-            FT_FREE( saved_coords );
-            FT_FREE( new_coords );
-            goto Skip_Axis_Override;
+            axis_indices = stack_axis_indices;
+          }
+          else
+          {
+            if ( FT_NEW_ARRAY( axis_indices, component.num_axis_values ) )
+            {
+              if ( coords_on_heap )
+              {
+                FT_FREE( saved_coords );
+                FT_FREE( new_coords );
+              }
+              goto Skip_Axis_Override;
+            }
           }
 
           /* Read axis indices from TupleList */
@@ -2727,9 +2823,13 @@
                                             axis_indices );
           if ( error )
           {
-            FT_FREE( axis_indices );
-            FT_FREE( saved_coords );
-            FT_FREE( new_coords );
+            if ( axis_indices != stack_axis_indices )
+              FT_FREE( axis_indices );
+            if ( coords_on_heap )
+            {
+              FT_FREE( saved_coords );
+              FT_FREE( new_coords );
+            }
             goto Skip_Axis_Override;
           }
 
@@ -2746,7 +2846,8 @@
             }
           }
 
-          FT_FREE( axis_indices );
+          if ( axis_indices != stack_axis_indices )
+            FT_FREE( axis_indices );
         }
 
         /* Apply the new normalized coordinates */
@@ -2808,9 +2909,13 @@ Skip_Axis_Override:
         FT_Error  restore_error;
         restore_error = FT_Set_Var_Blend_Coordinates( (FT_Face)face, num_coords, saved_coords );
         if ( restore_error )
+          (void)0;
 
-        FT_FREE( saved_coords );
-        FT_FREE( new_coords );
+        if ( coords_on_heap )
+        {
+          FT_FREE( saved_coords );
+          FT_FREE( new_coords );
+        }
       }
 #endif
 
