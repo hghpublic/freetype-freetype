@@ -981,6 +981,10 @@ FT_BEGIN_HEADER
     TT_Free_Table_Func    free_svg;
     TT_Load_Svg_Doc_Func  load_svg_doc;
 
+    /* OpenType VARC Support */
+    TT_Load_Table_Func    load_varc;
+    TT_Free_Table_Func    free_varc;
+
   } SFNT_Interface;
 
 
@@ -1037,7 +1041,9 @@ FT_BEGIN_HEADER
           get_name_id_,                  \
           load_svg_,                     \
           free_svg_,                     \
-          load_svg_doc_ )                \
+          load_svg_doc_,                 \
+          load_varc_,                    \
+          free_varc_ )                   \
   static const SFNT_Interface  class_ =  \
   {                                      \
     goto_table_,                         \
@@ -1087,7 +1093,9 @@ FT_BEGIN_HEADER
     get_name_id_,                        \
     load_svg_,                           \
     free_svg_,                           \
-    load_svg_doc_                        \
+    load_svg_doc_,                       \
+    load_varc_,                          \
+    free_varc_                           \
   };
 
 

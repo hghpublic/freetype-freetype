@@ -1024,6 +1024,12 @@
       LOAD_( colr );
     }
 
+#ifdef TT_CONFIG_OPTION_VARC
+    /* variable composite glyph support */
+    if ( sfnt->load_varc )
+      LOAD_( varc );
+#endif
+
     /* OpenType-SVG glyph support */
     if ( sfnt->load_svg )
       LOAD_( svg );
@@ -1469,6 +1475,12 @@
         sfnt->free_cpal( face );
         sfnt->free_colr( face );
       }
+
+#ifdef TT_CONFIG_OPTION_VARC
+      /* free VARC data */
+      if ( sfnt->free_varc )
+        sfnt->free_varc( face );
+#endif
 
 #ifdef FT_CONFIG_OPTION_SVG
       /* free SVG data */

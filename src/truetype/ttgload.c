@@ -34,6 +34,10 @@
 #include "ttgxvar.h"
 #endif
 
+#ifdef TT_CONFIG_OPTION_VARC
+#include "../sfnt/ttvarc.h"
+#endif
+
 #include "tterrors.h"
 
 
@@ -2534,6 +2538,28 @@
     }
 
 #endif /* FT_CONFIG_OPTION_SVG */
+
+#ifdef TT_CONFIG_OPTION_VARC
+
+    /* check for VARC glyphs */
+    if ( face->varc && tt_face_has_varc_glyph( face, glyph_index ) )
+    {
+      FT_TRACE3(( "Loading VARC glyph\n" ));
+
+      error = tt_face_load_varc_glyph( face,
+                                       (FT_GlyphSlot)glyph,
+                                       glyph_index,
+                                       load_flags );
+      if ( !error )
+      {
+        FT_TRACE3(( "Successfully loaded VARC glyph\n" ));
+        goto Exit;
+      }
+
+      FT_TRACE3(( "Failed to load VARC glyph, falling back to glyf\n" ));
+    }
+
+#endif /* TT_CONFIG_OPTION_VARC */
 
     error = tt_loader_init( &loader, size, glyph, load_flags, FALSE );
     if ( error )

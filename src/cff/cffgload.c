@@ -29,6 +29,10 @@
 
 #include "cfferrs.h"
 
+#ifdef TT_CONFIG_OPTION_VARC
+#include "../sfnt/ttvarc.h"
+#endif
+
 #ifdef TT_CONFIG_OPTION_GX_VAR_SUPPORT
 #define IS_DEFAULT_INSTANCE( _face )             \
           ( !( FT_IS_NAMED_INSTANCE( _face ) ||  \
@@ -407,6 +411,28 @@
     }
 
 #endif /* FT_CONFIG_OPTION_SVG */
+
+#ifdef TT_CONFIG_OPTION_VARC
+
+    /* check for VARC glyphs */
+    if ( face->varc && tt_face_has_varc_glyph( face, glyph_index ) )
+    {
+      FT_TRACE3(( "Loading VARC glyph\n" ));
+
+      error = tt_face_load_varc_glyph( face,
+                                       (FT_GlyphSlot)glyph,
+                                       glyph_index,
+                                       load_flags );
+      if ( !error )
+      {
+        FT_TRACE3(( "Successfully loaded VARC glyph\n" ));
+        return FT_Err_Ok;
+      }
+
+      FT_TRACE3(( "Failed to load VARC glyph, falling back to CFF\n" ));
+    }
+
+#endif /* TT_CONFIG_OPTION_VARC */
 
     /* top-level code ensures that FT_LOAD_NO_HINTING is set */
     /* if FT_LOAD_NO_SCALE is active                         */

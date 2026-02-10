@@ -28,6 +28,7 @@
 #include "ttcolr.c"
 #include "ttcpal.c"
 #include "ttsvg.c"
+#include "ttvarc.c"
 
 #include "ttgpos.c"
 #include "ttkern.c"

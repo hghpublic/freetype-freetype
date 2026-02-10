@@ -1595,6 +1595,13 @@ FT_BEGIN_HEADER
     /* since 2.12 */
     void*                 svg;
 
+#ifdef TT_CONFIG_OPTION_VARC
+    /* since 2.14 */
+    void*                 varc;
+    void*                 varc_context;  /* Active recursion context */
+    FT_Bool               varc_loading_components;  /* Skip VARC check for components */
+#endif
+
 #ifdef TT_CONFIG_OPTION_GPOS_KERNING
     /* since 2.13.3 */
     FT_Byte*              gpos_table;
