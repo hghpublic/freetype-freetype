@@ -2667,6 +2667,18 @@
     p = record_data;
     limit = record_data + record_size;
 
+    /* Allocate a reusable temp glyph slot for component loading.       */
+    /* FT_New_GlyphSlot prepends to face->glyph list, so FT_Load_Glyph */
+    /* will load into this slot.  One slot per recursion level suffices. */
+    {
+      FT_GlyphSlot  temp_glyph;
+
+
+      error = FT_New_GlyphSlot( (FT_Face)face, &temp_glyph );
+      if ( error )
+        goto Cleanup;
+    }
+
     /* Parse components until we run out of data */
     while ( p < limit )
     {
@@ -2708,18 +2720,6 @@
 
       /* Build transformation matrix */
       tt_varc_build_transform( &component, &matrix, &offset );
-
-      /* Load component glyph into a temporary slot */
-      /* FT_New_GlyphSlot prepends to face->glyph list;            */
-      /* FT_Done_GlyphSlot removes it, restoring the previous head */
-      FT_GlyphSlot  temp_glyph;
-
-      error = FT_New_GlyphSlot( (FT_Face)face, &temp_glyph );
-      if ( error )
-      {
-        tt_varc_free_component( face, &component );
-        goto Cleanup;
-      }
 
       /* Apply axis value overrides if present */
       FT_Fixed*  new_coords = NULL;
@@ -2975,12 +2975,10 @@ Skip_Axis_Override:
       context->has_parent_transform = saved_has_parent;
 
 
-      component_slot = temp_glyph;
-
+      component_slot = face->root.glyph;
 
       if ( error )
       {
-        FT_Done_GlyphSlot( component_slot );
         tt_varc_free_component( face, &component );
         continue;  /* Skip failed component, continue with others */
       }
@@ -3007,7 +3005,6 @@ Skip_Axis_Override:
                                   &slot->outline );
           if ( error )
           {
-            FT_Done_GlyphSlot( component_slot );
             tt_varc_free_component( face, &component );
             goto Cleanup;
           }
@@ -3017,7 +3014,6 @@ Skip_Axis_Override:
           if ( error )
           {
             FT_Outline_Done( (FT_Library)face->root.driver->root.library, &slot->outline );
-            FT_Done_GlyphSlot( component_slot );
             tt_varc_free_component( face, &component );
             goto Cleanup;
           }
@@ -3035,7 +3031,6 @@ Skip_Axis_Override:
                FT_RENEW_ARRAY( slot->outline.tags, old_n_points, new_n_points ) ||
                FT_RENEW_ARRAY( slot->outline.contours, old_n_contours, new_n_contours ) )
           {
-            FT_Done_GlyphSlot( component_slot );
             tt_varc_free_component( face, &component );
             goto Cleanup;
           }
@@ -3059,7 +3054,6 @@ Skip_Axis_Override:
         }
       }
 
-      FT_Done_GlyphSlot( component_slot );
       tt_varc_free_component( face, &component );
     }
 
@@ -3072,6 +3066,12 @@ Skip_Axis_Override:
     error = FT_Err_Ok;
 
   Cleanup:
+    /* Free the temp glyph slot for this recursion level.             */
+    /* face->root.glyph points to the temp slot we allocated above;   */
+    /* FT_Done_GlyphSlot removes it and restores the previous head.   */
+    if ( face->root.glyph != glyph_slot )
+      FT_Done_GlyphSlot( face->root.glyph );
+
     /* Pop from recursion stack */
     tt_varc_context_pop( context );
 
