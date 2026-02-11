@@ -2575,6 +2575,9 @@
     FT_Fixed            stack_new_coords[VARC_STACK_COORD_COUNT];
     FT_UInt             stack_axis_indices[VARC_STACK_INDICES_COUNT];
     FT_Fixed            stack_axis_values[VARC_STACK_AXIS_COUNT];
+    FT_Matrix           saved_transform_matrix;
+    FT_Vector           saved_transform_delta;
+    FT_UInt             saved_transform_flags;
 
 
 
@@ -2632,6 +2635,14 @@
       }
 #endif
     }
+
+    /* Save the face's current transform (user's transform at top level,    */
+    /* parent's VARC transform at recursive levels).  We restore or clear  */
+    /* this before returning so FT_Load_Glyph's post-processing does the  */
+    /* right thing.                                                        */
+    saved_transform_matrix = face->root.internal->transform_matrix;
+    saved_transform_delta  = face->root.internal->transform_delta;
+    saved_transform_flags  = face->root.internal->transform_flags;
 
     /* Get parent coords from context for delta evaluation */
     parent_coords = context->current_coords;
@@ -2835,7 +2846,7 @@ Skip_Axis_Override:
         composed_delta = offset;
       }
 
-      /* Store composed transform in context for child components */
+      /* Store composed transform in context for child VARC components */
       context->parent_matrix = composed_matrix;
       context->parent_delta = composed_delta;
       context->has_parent_transform = TRUE;
@@ -2850,9 +2861,72 @@ Skip_Axis_Override:
       }
 #endif
 
-      /* Load component with NO_SCALE to get raw outlines */
-      FT_Int32  component_load_flags = load_flags | FT_LOAD_NO_SCALE;
-      error = FT_Load_Glyph( (FT_Face)face, component.gid, component_load_flags );
+      /* Set composed VARC transform on face so FT_Load_Glyph applies it. */
+      /* The matrix is dimensionless (16.16) and works in any coordinate   */
+      /* system.  The delta must match the outline's coordinate space:      */
+      /* 26.6 device pixels (scaled) or integer font units (NO_SCALE).     */
+      {
+        FT_Face_Internal  internal = face->root.internal;
+
+
+        internal->transform_matrix = composed_matrix;
+        internal->transform_flags  = 0;
+
+        if ( ( composed_matrix.xy | composed_matrix.yx ) ||
+             composed_matrix.xx != 0x10000L              ||
+             composed_matrix.yy != 0x10000L              )
+          internal->transform_flags |= 1;
+
+        if ( load_flags & FT_LOAD_NO_SCALE )
+        {
+          /* NO_SCALE: outline in integer font units */
+          internal->transform_delta.x =
+            ( composed_delta.x + 32 ) >> 6;
+          internal->transform_delta.y =
+            ( composed_delta.y + 32 ) >> 6;
+        }
+        else
+        {
+          FT_Size  size = face->root.size;
+
+
+          if ( size )
+          {
+            FT_Fixed  x_scale = size->metrics.x_scale;
+            FT_Fixed  y_scale = size->metrics.y_scale;
+
+
+            /* Convert from 26.6 font units to 26.6 device pixels.  */
+            /* 26.6 * 16.16 = 42.22; >> 22 gives 26.6.             */
+            internal->transform_delta.x =
+              (FT_Pos)( ( (FT_Int64)composed_delta.x * x_scale +
+                          0x200000L ) >> 22 );
+            internal->transform_delta.y =
+              (FT_Pos)( ( (FT_Int64)composed_delta.y * y_scale +
+                          0x200000L ) >> 22 );
+          }
+          else
+          {
+            internal->transform_delta.x =
+              ( composed_delta.x + 32 ) >> 6;
+            internal->transform_delta.y =
+              ( composed_delta.y + 32 ) >> 6;
+          }
+        }
+
+        if ( internal->transform_delta.x | internal->transform_delta.y )
+          internal->transform_flags |= 2;
+      }
+
+      /* Load component.  Strip IGNORE_TRANSFORM so our VARC transform   */
+      /* is applied by FT_Load_Glyph's post-processing.                  */
+      {
+        FT_Int32  component_load_flags =
+                    load_flags & ~(FT_Int32)FT_LOAD_IGNORE_TRANSFORM;
+
+        error = FT_Load_Glyph( (FT_Face)face, component.gid,
+                                component_load_flags );
+      }
 
 #ifdef TT_CONFIG_OPTION_GX_VAR_SUPPORT
       /* Restore parent coordinates and context */
@@ -2885,31 +2959,16 @@ Skip_Axis_Override:
       }
 
 
-      /* Transform component outline manually (only for base glyphs) */
-      /* VARC glyphs are already transformed recursively with composed transform */
-      FT_Bool  component_is_varc = tt_face_has_varc_glyph( face, component.gid );
+      /* FT_Load_Glyph already applied our composed transform.          */
+      /* For base glyphs: the driver loaded and scaled, then            */
+      /*   FT_Load_Glyph applied our matrix + delta.                   */
+      /* For VARC sub-components: the recursive handler processed      */
+      /*   them and cleared the face transform before returning, so    */
+      /*   FT_Load_Glyph's post-processing was a no-op.               */
 
       if ( component_slot->outline.n_points > 0 )
       {
-        /* Only apply transform to base glyphs, not VARC glyphs */
-        if ( !component_is_varc )
-        {
-
-          /* Apply matrix transform */
-
-          FT_Outline_Transform( &component_slot->outline, &composed_matrix );
-
-          /* Apply translation - convert from 26.6 to font units with rounding */
-          FT_Outline_Translate( &component_slot->outline,
-                                ( composed_delta.x + 32 ) >> 6,
-                                ( composed_delta.y + 32 ) >> 6 );
-
-        }
-        else
-        {
-        }
-
-        /* Accumulate into main glyph slot (always, for both VARC and base) */
+        /* Accumulate component outline into main glyph slot */
         if ( slot->outline.n_points == 0 )
         {
           /* First component - allocate and copy */
@@ -2978,25 +3037,10 @@ Skip_Axis_Override:
     }
 
 
-    /* If original load request wasn't NO_SCALE, scale the final outline */
-    if ( !( load_flags & FT_LOAD_NO_SCALE ) && slot->outline.n_points > 0 )
-    {
-      /* Scale outline to current font size */
-      FT_Matrix  scale_matrix;
-      FT_Size    size = face->root.size;
-
-      if ( size )
-      {
-        /* Build scaling matrix from face->size */
-        scale_matrix.xx = size->metrics.x_scale;
-        scale_matrix.xy = 0;
-        scale_matrix.yx = 0;
-        scale_matrix.yy = size->metrics.y_scale;
-
-
-        FT_Outline_Transform( &slot->outline, &scale_matrix );
-      }
-    }
+    /* Outline is already in the correct coordinate system:          */
+    /* - Scaled mode: 26.6 device pixels (from FT_Load_Glyph)      */
+    /* - NO_SCALE: integer font units (from FT_Load_Glyph)          */
+    /* No additional scaling or conversion needed.                   */
 
     error = FT_Err_Ok;
 
@@ -3012,23 +3056,26 @@ Skip_Axis_Override:
       FT_FREE( context );
       face->varc_context = NULL;
     }
+
+    /* Manage face transform for FT_Load_Glyph's post-processing.     */
+    /* At top level: restore user's transform so it gets applied once. */
+    /* At recursive levels: clear to identity so the parent's          */
+    /* FT_Load_Glyph doesn't double-apply.                            */
+    if ( context_owner )
+    {
+      face->root.internal->transform_matrix = saved_transform_matrix;
+      face->root.internal->transform_delta  = saved_transform_delta;
+      face->root.internal->transform_flags  = saved_transform_flags;
+    }
     else
     {
-    }
-
-    /* Convert back to font units if NO_SCALE was requested */
-    /* Only do this at the top level (depth 0) to avoid double conversion */
-    if ( !error && ( load_flags & FT_LOAD_NO_SCALE ) && slot->outline.n_points > 0 &&
-         context->recursion_depth == 0 )
-    {
-      FT_UInt  i;
-
-      for ( i = 0; i < slot->outline.n_points; i++ )
-      {
-        slot->outline.points[i].x = ( slot->outline.points[i].x + 32 ) >> 6;
-        slot->outline.points[i].y = ( slot->outline.points[i].y + 32 ) >> 6;
-      }
-
+      face->root.internal->transform_matrix.xx = 0x10000L;
+      face->root.internal->transform_matrix.xy = 0;
+      face->root.internal->transform_matrix.yx = 0;
+      face->root.internal->transform_matrix.yy = 0x10000L;
+      face->root.internal->transform_delta.x   = 0;
+      face->root.internal->transform_delta.y   = 0;
+      face->root.internal->transform_flags     = 0;
     }
 
     /* Set glyph format if successful */
