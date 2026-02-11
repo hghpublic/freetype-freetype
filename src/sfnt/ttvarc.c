@@ -1396,6 +1396,14 @@
     FT_UInt   i;
     FT_Int64  stack_accumulators[VARC_STACK_DELTA_COUNT];
     FT_Int32  stack_all_deltas[VARC_STACK_DELTA_COUNT * 16];  /* deltas * regions */
+    FT_Int64* accumulators = NULL;
+    FT_Byte*  regions_data = NULL;
+    FT_Byte*  regions_limit = NULL;
+    FT_UInt   total_deltas;
+    FT_Int32* all_deltas = NULL;
+    FT_UInt   bytes_consumed = 0;
+    FT_Byte*  region_indices_ptr;
+    FT_UInt   region_idx;
 
     if ( !varc->var_store_loaded || !varc->multi_var_store )
     {
@@ -1493,8 +1501,6 @@
       return error;
     }
     /* Allocate 64-bit accumulators for each delta */
-    FT_Int64*  accumulators = NULL;
-
     if ( num_deltas <= VARC_STACK_DELTA_COUNT )
     {
       accumulators = stack_accumulators;
@@ -1513,9 +1519,6 @@
       accumulators[i] = FT_INT64_ZERO;
 
     /* Parse SparseVarRegionList to get region definitions */
-    FT_Byte*  regions_data = NULL;
-    FT_Byte*  regions_limit = NULL;
-
     if ( regions_offset > 0 && regions_offset < varc->table_size )
     {
       regions_data = mvs_data + regions_offset;
@@ -1531,10 +1534,7 @@
     }
 
     /* Read ALL deltas from the flat tuple (region_count * num_deltas values) */
-    FT_UInt   total_deltas = region_count * num_deltas;
-    FT_Int32* all_deltas = NULL;  /* Plain integers, will be scaled later */
-    FT_UInt   bytes_consumed = 0;
-
+    total_deltas = region_count * num_deltas;
 
     /* Allocate space for all deltas */
     if ( total_deltas <= VARC_STACK_DELTA_COUNT * 16 )
@@ -1563,8 +1563,7 @@
       goto Cleanup;
     }
     /* Parse regionIndices and accumulate scaled deltas */
-    FT_Byte*  region_indices_ptr = mvd_data + 3;  /* After format(u8) + region_count(u16) */
-    FT_UInt   region_idx;
+    region_indices_ptr = mvd_data + 3;  /* After format(u8) + region_count(u16) */
 
     for ( region_idx = 0; region_idx < region_count; region_idx++ )
     {
