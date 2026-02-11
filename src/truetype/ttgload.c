@@ -2552,6 +2552,47 @@
                                        load_flags );
       if ( !error )
       {
+        FT_Short   left_bearing   = 0;
+        FT_Short   top_bearing    = 0;
+        FT_UShort  advance_width  = 0;
+        FT_UShort  advance_height = 0;
+
+
+        /* Get advance width from hmtx */
+        TT_Get_HMetrics( face, glyph_index,
+                         &left_bearing,
+                         &advance_width );
+        TT_Get_VMetrics( face, glyph_index,
+                         0,
+                         &top_bearing,
+                         &advance_height );
+
+        glyph->linearHoriAdvance = advance_width;
+        glyph->linearVertAdvance = advance_height;
+
+#ifdef TT_CONFIG_OPTION_GX_VAR_SUPPORT
+        {
+          FT_Int  advance = (FT_Int)advance_width;
+
+
+          tt_hadvance_adjust( (FT_Face)face, glyph_index, &advance );
+          advance_width = (FT_UShort)advance;
+        }
+#endif
+
+        if ( load_flags & FT_LOAD_NO_SCALE )
+        {
+          glyph->metrics.horiAdvance = (FT_Pos)advance_width * 64;
+          glyph->metrics.vertAdvance = (FT_Pos)advance_height * 64;
+        }
+        else
+        {
+          glyph->metrics.horiAdvance = FT_MulFix( advance_width,
+                                                   size->metrics->x_scale );
+          glyph->metrics.vertAdvance = FT_MulFix( advance_height,
+                                                   size->metrics->y_scale );
+        }
+
         FT_TRACE3(( "Successfully loaded VARC glyph\n" ));
         goto Exit;
       }
