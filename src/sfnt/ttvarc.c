@@ -3025,8 +3025,8 @@ Skip_Axis_Override:
 
       for ( i = 0; i < slot->outline.n_points; i++ )
       {
-        slot->outline.points[i].x >>= 6;
-        slot->outline.points[i].y >>= 6;
+        slot->outline.points[i].x = ( slot->outline.points[i].x + 32 ) >> 6;
+        slot->outline.points[i].y = ( slot->outline.points[i].y + 32 ) >> 6;
       }
 
     }
