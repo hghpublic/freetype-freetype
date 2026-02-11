@@ -265,6 +265,12 @@ FT_BEGIN_HEADER
     FT_Fixed*  font_coords;
     FT_UInt    num_font_coords;
 
+    /* Current variation coords for delta evaluation at this recursion level.
+     * Points to font_coords at depth 1, or parent's new_coords at depth > 1.
+     * Not owned - do not free. */
+    FT_Fixed*  current_coords;
+    FT_UInt    num_current_coords;
+
     /* Reusable buffers to avoid per-component allocations */
     FT_Fixed*  axis_values_buffer;
     FT_UInt    axis_values_buffer_size;

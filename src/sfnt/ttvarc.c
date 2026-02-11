@@ -1371,10 +1371,13 @@
                            TT_Varc    varc,
                            FT_UInt32  var_index,
                            FT_UInt    num_deltas,
-                           FT_Fixed*  deltas )
+                           FT_Fixed*  deltas,
+                           FT_Fixed*  current_coords,
+                           FT_UInt    num_coords )
   {
 #ifdef TT_CONFIG_OPTION_GX_VAR_SUPPORT
     FT_Error  error;
+    FT_Memory memory = face->root.memory;
     FT_Byte*  mvs_data;      /* MultiItemVariationStore */
     FT_Byte*  table_limit;
     FT_UInt16 format;
@@ -1391,12 +1394,8 @@
     FT_Byte*  tuple_data;
     FT_UInt   tuple_size;
     FT_UInt   i;
-    FT_Fixed  stack_coords[VARC_STACK_COORD_COUNT];
     FT_Int64  stack_accumulators[VARC_STACK_DELTA_COUNT];
     FT_Int32  stack_all_deltas[VARC_STACK_DELTA_COUNT * 16];  /* deltas * regions */
-
-
-    FT_UNUSED( face );
 
     if ( !varc->var_store_loaded || !varc->multi_var_store )
     {
@@ -1493,47 +1492,6 @@
     {
       return error;
     }
-    /* Get current variation coordinates */
-    FT_Fixed* current_coords = NULL;
-    FT_UInt   num_coords = 0;
-    FT_Memory memory = face->root.memory;
-
-#ifdef TT_CONFIG_OPTION_GX_VAR_SUPPORT
-    {
-      FT_MM_Var* master;
-
-      error = FT_Get_MM_Var( (FT_Face)face, &master );
-      if ( !error && master )
-      {
-        num_coords = master->num_axis;
-
-        if ( num_coords <= VARC_STACK_COORD_COUNT )
-        {
-          current_coords = stack_coords;
-        }
-        else
-        {
-          if ( FT_NEW_ARRAY( current_coords, num_coords ) )
-          {
-            num_coords = 0;
-          }
-        }
-
-        if ( num_coords > 0 )
-        {
-          error = FT_Get_Var_Blend_Coordinates( (FT_Face)face, num_coords, current_coords );
-          if ( error )
-          {
-            if ( current_coords != stack_coords )
-              FT_FREE( current_coords );
-            current_coords = NULL;
-            num_coords = 0;
-          }
-        }
-      }
-    }
-#endif
-
     /* Allocate 64-bit accumulators for each delta */
     FT_Int64*  accumulators = NULL;
 
@@ -1741,9 +1699,6 @@
     error = FT_Err_Ok;
 
   Cleanup:
-    if ( current_coords && current_coords != stack_coords )
-      FT_FREE( current_coords );
-
     return error;
 #else
     FT_UNUSED( face );
@@ -1751,6 +1706,8 @@
     FT_UNUSED( var_index );
     FT_UNUSED( num_deltas );
     FT_UNUSED( deltas );
+    FT_UNUSED( current_coords );
+    FT_UNUSED( num_coords );
 
     return FT_THROW( Unimplemented_Feature );
 #endif
@@ -1931,7 +1888,9 @@
   static void
   tt_varc_apply_axis_deltas( TT_Face           face,
                              TT_Varc           varc,
-                             TT_VarcComponent  component )
+                             TT_VarcComponent  component,
+                             FT_Fixed*         current_coords,
+                             FT_UInt           num_coords )
   {
 #ifdef TT_CONFIG_OPTION_GX_VAR_SUPPORT
     FT_Error  error;
@@ -1960,7 +1919,9 @@
     error = tt_varc_get_item_deltas( face, varc,
                                      component->axis_values_var_index,
                                      component->num_axis_values,
-                                     deltas );
+                                     deltas,
+                                     current_coords,
+                                     num_coords );
     if ( !error )
     {
       /* Apply deltas to axis values:
@@ -1985,6 +1946,8 @@
     FT_UNUSED( face );
     FT_UNUSED( varc );
     FT_UNUSED( component );
+    FT_UNUSED( current_coords );
+    FT_UNUSED( num_coords );
 #endif
   }
 
@@ -2010,7 +1973,9 @@
   static void
   tt_varc_apply_transform_deltas( TT_Face           face,
                                   TT_Varc           varc,
-                                  TT_VarcComponent  component )
+                                  TT_VarcComponent  component,
+                                  FT_Fixed*         current_coords,
+                                  FT_UInt           num_coords )
   {
 #ifdef TT_CONFIG_OPTION_GX_VAR_SUPPORT
     FT_Error  error;
@@ -2054,7 +2019,9 @@
     error = tt_varc_get_item_deltas( face, varc,
                                      component->transform_var_index,
                                      num_deltas,
-                                     deltas );
+                                     deltas,
+                                     current_coords,
+                                     num_coords );
     if ( !error )
     {
       /* Apply deltas to transform components in order */
@@ -2137,6 +2104,8 @@
     FT_UNUSED( face );
     FT_UNUSED( varc );
     FT_UNUSED( component );
+    FT_UNUSED( current_coords );
+    FT_UNUSED( num_coords );
 #endif
   }
 
@@ -2599,7 +2568,8 @@
     FT_Bool             context_owner = FALSE;
     FT_Memory           memory = face->root.memory;
     TT_GlyphSlot        slot = (TT_GlyphSlot)glyph_slot;
-    FT_Fixed            stack_saved_coords[VARC_STACK_COORD_COUNT];
+    FT_Fixed*           parent_coords = NULL;
+    FT_UInt             num_coords = 0;
     FT_Fixed            stack_new_coords[VARC_STACK_COORD_COUNT];
     FT_UInt             stack_axis_indices[VARC_STACK_INDICES_COUNT];
     FT_Fixed            stack_axis_values[VARC_STACK_AXIS_COUNT];
@@ -2624,9 +2594,22 @@
       context_owner = TRUE;
       /* Save font's current variation coordinates for inheritance at depth 1 */
 #ifdef TT_CONFIG_OPTION_GX_VAR_SUPPORT
-      if ( face->blend && face->blend->num_axis > 0 )
       {
-        context->num_font_coords = face->blend->num_axis;
+        FT_MM_Var*  master;
+
+        /* FT_Get_MM_Var ensures face->blend is initialized (it's lazy) */
+        error = FT_Get_MM_Var( (FT_Face)face, &master );
+        if ( !error && master )
+        {
+          if ( master->num_axis > 0 )
+            context->num_font_coords = master->num_axis;
+          FT_Done_MM_Var( face->root.driver->root.library,
+                          master );
+        }
+        error = FT_Err_Ok;  /* Non-fatal */
+      }
+      if ( context->num_font_coords > 0 )
+      {
         if ( !FT_NEW_ARRAY( context->font_coords, context->num_font_coords ) )
         {
           error = FT_Get_Var_Blend_Coordinates( (FT_Face)face,
@@ -2639,14 +2622,18 @@
           }
           else
           {
+            /* Set initial current_coords to font_coords */
+            context->current_coords = context->font_coords;
+            context->num_current_coords = context->num_font_coords;
           }
         }
       }
 #endif
     }
-    else
-    {
-    }
+
+    /* Get parent coords from context for delta evaluation */
+    parent_coords = context->current_coords;
+    num_coords = context->num_current_coords;
 
     /* Push this glyph onto recursion stack */
     error = tt_varc_context_push( context, glyph_index );
@@ -2687,13 +2674,15 @@
       /* Apply variation deltas to axis values if present */
       if ( component.flags & VARC_AXES_HAVE_VARIATION )
       {
-        tt_varc_apply_axis_deltas( face, varc, &component );
+        tt_varc_apply_axis_deltas( face, varc, &component,
+                                   parent_coords, num_coords );
       }
 
       /* Apply variation deltas to transform values if present */
       if ( component.flags & VARC_TRANSFORM_HAS_VARIATION )
       {
-        tt_varc_apply_transform_deltas( face, varc, &component );
+        tt_varc_apply_transform_deltas( face, varc, &component,
+                                        parent_coords, num_coords );
       }
 
       /* TODO: Evaluate condition - for now, always render */
@@ -2717,86 +2706,47 @@
       face->root.glyph = temp_glyph;
 
       /* Apply axis value overrides if present */
-      FT_Fixed*  saved_coords = NULL;
-      FT_UInt    num_coords = 0;
       FT_Fixed*  new_coords = NULL;
-      FT_Bool    coords_on_heap = FALSE;
-
+      FT_Bool    new_coords_on_heap = FALSE;
+      FT_Bool    has_axis_override = FALSE;
 
 #ifdef TT_CONFIG_OPTION_GX_VAR_SUPPORT
-      if ( component.num_axis_values > 0 && component.axis_values )
+      if ( component.num_axis_values > 0 && component.axis_values &&
+           num_coords > 0 && parent_coords )
       {
-        FT_MM_Var*  master;
-
-        /* Get number of axes using FT_Get_MM_Var */
-        error = FT_Get_MM_Var( (FT_Face)face, &master );
-        if ( error )
-        {
-          goto Skip_Axis_Override;
-        }
-
-        num_coords = master->num_axis;
-        /* Allocate arrays for old and new coordinates */
+        /* Allocate new_coords only (parent_coords replaces saved_coords) */
         if ( num_coords <= VARC_STACK_COORD_COUNT )
         {
-          saved_coords = stack_saved_coords;
           new_coords = stack_new_coords;
-          coords_on_heap = FALSE;
         }
         else
         {
-          if ( FT_NEW_ARRAY( saved_coords, num_coords ) ||
-               FT_NEW_ARRAY( new_coords, num_coords ) )
-          {
-            if ( saved_coords )
-              FT_FREE( saved_coords );
+          if ( FT_NEW_ARRAY( new_coords, num_coords ) )
             goto Skip_Axis_Override;
-          }
-          coords_on_heap = TRUE;
+          new_coords_on_heap = TRUE;
         }
-
-        /* Get current normalized coordinates */
-        error = FT_Get_Var_Blend_Coordinates( (FT_Face)face, num_coords, saved_coords );
-        if ( error )
-        {
-          if ( coords_on_heap )
-          {
-            FT_FREE( saved_coords );
-            FT_FREE( new_coords );
-          }
-          goto Skip_Axis_Override;
-        }
-
 
         /* Start with current coordinates or reset to default */
         if ( component.flags & VARC_RESET_UNSPECIFIED_AXES )
         {
           /* Reset to default normalized coordinates (0.0 for all axes) */
-          for ( FT_UInt i = 0; i < num_coords; i++ )
-            new_coords[i] = 0;  /* 0.0 in normalized space = default */
+          FT_UInt  j;
+
+          for ( j = 0; j < num_coords; j++ )
+            new_coords[j] = 0;  /* 0.0 in normalized space = default */
         }
         else
         {
-          /* Inherit from parent (or font's original coords at depth 1) */
-          /* At depth 1, inherit from font's original coords if available */
-          if ( context->recursion_depth == 1 &&
-               context->font_coords &&
-               context->num_font_coords == num_coords )
-          {
-            FT_MEM_COPY( new_coords, context->font_coords, num_coords * sizeof( FT_Fixed ) );
-          }
-          else
-          {
-            /* At depth > 1, inherit from immediate parent */
-            FT_MEM_COPY( new_coords, saved_coords, num_coords * sizeof( FT_Fixed ) );
-          }
+          /* Inherit from parent coords (handles both depth 1 and > 1) */
+          FT_MEM_COPY( new_coords, parent_coords,
+                       num_coords * sizeof( FT_Fixed ) );
         }
 
         /* Read axis indices and apply values */
         if ( component.flags & VARC_HAVE_AXES && varc->axis_indices_list )
         {
           FT_UInt*  axis_indices = NULL;
-          FT_UInt   i;
+          FT_UInt   j;
 
           /* Allocate array for axis indices */
           if ( component.num_axis_values <= VARC_STACK_INDICES_COUNT )
@@ -2807,11 +2757,9 @@
           {
             if ( FT_NEW_ARRAY( axis_indices, component.num_axis_values ) )
             {
-              if ( coords_on_heap )
-              {
-                FT_FREE( saved_coords );
+              if ( new_coords_on_heap )
                 FT_FREE( new_coords );
-              }
+              new_coords = NULL;
               goto Skip_Axis_Override;
             }
           }
@@ -2825,25 +2773,19 @@
           {
             if ( axis_indices != stack_axis_indices )
               FT_FREE( axis_indices );
-            if ( coords_on_heap )
-            {
-              FT_FREE( saved_coords );
+            if ( new_coords_on_heap )
               FT_FREE( new_coords );
-            }
+            new_coords = NULL;
             goto Skip_Axis_Override;
           }
 
           /* Apply axis values using the indices */
-          for ( i = 0; i < component.num_axis_values; i++ )
+          for ( j = 0; j < component.num_axis_values; j++ )
           {
-            FT_UInt axis_idx = axis_indices[i];
+            FT_UInt  axis_idx = axis_indices[j];
 
             if ( axis_idx < num_coords )
-            {
-              FT_Fixed  normalized = component.axis_values[i];
-
-              new_coords[axis_idx] = normalized;
-            }
+              new_coords[axis_idx] = component.axis_values[j];
           }
 
           if ( axis_indices != stack_axis_indices )
@@ -2851,7 +2793,9 @@
         }
 
         /* Apply the new normalized coordinates */
-        error = FT_Set_Var_Blend_Coordinates( (FT_Face)face, num_coords, new_coords );
+        error = FT_Set_Var_Blend_Coordinates( (FT_Face)face,
+                                               num_coords, new_coords );
+        has_axis_override = TRUE;
       }
 Skip_Axis_Override:
 #endif
@@ -2897,25 +2841,30 @@ Skip_Axis_Override:
       context->has_parent_transform = TRUE;
 
 
+      /* Set child's coords in context for recursive VARC processing */
+#ifdef TT_CONFIG_OPTION_GX_VAR_SUPPORT
+      if ( has_axis_override )
+      {
+        context->current_coords = new_coords;
+        context->num_current_coords = num_coords;
+      }
+#endif
+
       /* Load component with NO_SCALE to get raw outlines */
       FT_Int32  component_load_flags = load_flags | FT_LOAD_NO_SCALE;
       error = FT_Load_Glyph( (FT_Face)face, component.gid, component_load_flags );
 
-
 #ifdef TT_CONFIG_OPTION_GX_VAR_SUPPORT
-      /* Restore saved coordinates */
-      if ( saved_coords )
+      /* Restore parent coordinates and context */
+      if ( has_axis_override )
       {
-        FT_Error  restore_error;
-        restore_error = FT_Set_Var_Blend_Coordinates( (FT_Face)face, num_coords, saved_coords );
-        if ( restore_error )
-          (void)0;
+        FT_Set_Var_Blend_Coordinates( (FT_Face)face,
+                                       num_coords, parent_coords );
+        context->current_coords = parent_coords;
+        context->num_current_coords = num_coords;
 
-        if ( coords_on_heap )
-        {
-          FT_FREE( saved_coords );
+        if ( new_coords_on_heap )
           FT_FREE( new_coords );
-        }
       }
 #endif
 
