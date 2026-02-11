@@ -2808,9 +2808,22 @@
             FT_FREE( axis_indices );
         }
 
-        /* Apply the new normalized coordinates */
-        error = FT_Set_Var_Blend_Coordinates( (FT_Face)face,
-                                               num_coords, new_coords );
+        /* Apply the new normalized coordinates.                       */
+        /* Temporarily hide auto-hinter data so that                    */
+        /* FT_Set_Var_Blend_Coordinates doesn't free it; the caller    */
+        /* (e.g. the auto-fitter) may still be using it.               */
+        {
+          FT_Generic  saved_autohint = face->root.autohint;
+
+
+          face->root.autohint.data      = NULL;
+          face->root.autohint.finalizer = NULL;
+
+          error = FT_Set_Var_Blend_Coordinates( (FT_Face)face,
+                                                 num_coords, new_coords );
+
+          face->root.autohint = saved_autohint;
+        }
         has_axis_override = TRUE;
       }
 Skip_Axis_Override:
@@ -2919,10 +2932,15 @@ Skip_Axis_Override:
       }
 
       /* Load component.  Strip IGNORE_TRANSFORM so our VARC transform   */
-      /* is applied by FT_Load_Glyph's post-processing.                  */
+      /* is applied by FT_Load_Glyph's post-processing.  Add NO_HINTING  */
+      /* to avoid auto-fitter reentrancy: the auto-fitter initializes    */
+      /* per-face metrics lazily, and FT_Set_Var_Blend_Coordinates       */
+      /* (called below to change axis values) frees that state, causing  */
+      /* use-after-free if the auto-fitter was mid-initialization.       */
       {
         FT_Int32  component_load_flags =
-                    load_flags & ~(FT_Int32)FT_LOAD_IGNORE_TRANSFORM;
+                    ( load_flags & ~(FT_Int32)FT_LOAD_IGNORE_TRANSFORM ) |
+                    FT_LOAD_NO_HINTING;
 
         error = FT_Load_Glyph( (FT_Face)face, component.gid,
                                 component_load_flags );
