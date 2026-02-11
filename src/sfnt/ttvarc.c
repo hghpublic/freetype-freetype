@@ -2899,8 +2899,10 @@ Skip_Axis_Override:
 
           FT_Outline_Transform( &component_slot->outline, &composed_matrix );
 
-          /* Apply translation - convert from 26.6 to font units */
-          FT_Outline_Translate( &component_slot->outline, composed_delta.x >> 6, composed_delta.y >> 6 );
+          /* Apply translation - convert from 26.6 to font units with rounding */
+          FT_Outline_Translate( &component_slot->outline,
+                                ( composed_delta.x + 32 ) >> 6,
+                                ( composed_delta.y + 32 ) >> 6 );
 
         }
         else
