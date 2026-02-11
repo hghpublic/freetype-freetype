@@ -2661,6 +2661,11 @@
       FT_Matrix            matrix;
       FT_Vector            offset;
       FT_UInt              i;
+      FT_Matrix            composed_matrix;
+      FT_Vector            composed_delta;
+      FT_Matrix            saved_parent_matrix;
+      FT_Vector            saved_parent_delta;
+      FT_Bool              saved_has_parent;
       /* Parse component */
       error = tt_varc_parse_component( face, varc, &p, limit, &component,
                                        stack_axis_values, VARC_STACK_AXIS_COUNT );
@@ -2799,11 +2804,6 @@ Skip_Axis_Override:
 
       /* Load component - allow recursive VARC loading */
       /* Compose transforms: we want (T1*T2)(leaf) not T1(T2(leaf)) */
-      FT_Matrix  composed_matrix;
-      FT_Vector  composed_delta;
-      FT_Matrix  saved_parent_matrix;
-      FT_Vector  saved_parent_delta;
-      FT_Bool    saved_has_parent;
 
       /* Save current parent transform */
       saved_parent_matrix = context->parent_matrix;
