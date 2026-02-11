@@ -2578,6 +2578,7 @@
     FT_Matrix           saved_transform_matrix;
     FT_Vector           saved_transform_delta;
     FT_UInt             saved_transform_flags;
+    FT_GlyphLoader      gloader = NULL;
 
 
 
@@ -2679,6 +2680,12 @@
         goto Cleanup;
     }
 
+    /* Create a glyph loader for efficient outline accumulation.        */
+    /* FT_GlyphLoader uses geometric growth, avoiding O(n^2) realloc.  */
+    error = FT_GlyphLoader_New( memory, &gloader );
+    if ( error )
+      goto Cleanup;
+
     /* Parse components until we run out of data */
     while ( p < limit )
     {
@@ -2686,7 +2693,6 @@
       FT_GlyphSlot         component_slot;
       FT_Matrix            matrix;
       FT_Vector            offset;
-      FT_UInt              i;
       FT_Matrix            composed_matrix;
       FT_Vector            composed_delta;
       FT_Matrix            saved_parent_matrix;
@@ -2993,79 +2999,58 @@ Skip_Axis_Override:
 
       if ( component_slot->outline.n_points > 0 )
       {
-        /* Accumulate component outline into main glyph slot */
-        if ( slot->outline.n_points == 0 )
+        FT_Outline*  src = &component_slot->outline;
+        FT_Outline*  cur = &gloader->current.outline;
+
+
+        /* Ensure capacity in gloader with geometric growth */
+        error = FT_GLYPHLOADER_CHECK_POINTS( gloader,
+                                              src->n_points,
+                                              src->n_contours );
+        if ( error )
         {
-          /* First component - allocate and copy */
-
-          /* Allocate memory for outline */
-          error = FT_Outline_New( (FT_Library)face->root.driver->root.library,
-                                  component_slot->outline.n_points,
-                                  component_slot->outline.n_contours,
-                                  &slot->outline );
-          if ( error )
-          {
-            tt_varc_free_component( face, &component );
-            goto Cleanup;
-          }
-
-          /* Copy outline data */
-          error = FT_Outline_Copy( &component_slot->outline, &slot->outline );
-          if ( error )
-          {
-            FT_Outline_Done( (FT_Library)face->root.driver->root.library, &slot->outline );
-            tt_varc_free_component( face, &component );
-            goto Cleanup;
-          }
+          tt_varc_free_component( face, &component );
+          goto Cleanup;
         }
-        else
-        {
-          /* Append component to existing outline */
-          FT_UInt  old_n_points = slot->outline.n_points;
-          FT_UInt  old_n_contours = slot->outline.n_contours;
-          FT_UInt  new_n_points = old_n_points + component_slot->outline.n_points;
-          FT_UInt  new_n_contours = old_n_contours + component_slot->outline.n_contours;
 
-          /* Reallocate outline arrays */
-          if ( FT_RENEW_ARRAY( slot->outline.points, old_n_points, new_n_points ) ||
-               FT_RENEW_ARRAY( slot->outline.tags, old_n_points, new_n_points ) ||
-               FT_RENEW_ARRAY( slot->outline.contours, old_n_contours, new_n_contours ) )
-          {
-            tt_varc_free_component( face, &component );
-            goto Cleanup;
-          }
+        FT_ARRAY_COPY( cur->points, src->points, src->n_points );
+        FT_ARRAY_COPY( cur->tags, src->tags, src->n_points );
+        FT_ARRAY_COPY( cur->contours, src->contours, src->n_contours );
 
-          /* Copy component points */
-          for ( i = 0; i < component_slot->outline.n_points; i++ )
-          {
-            slot->outline.points[old_n_points + i] = component_slot->outline.points[i];
-            slot->outline.tags[old_n_points + i] = component_slot->outline.tags[i];
-          }
+        cur->n_points   = src->n_points;
+        cur->n_contours = src->n_contours;
 
-          /* Copy component contours (adjust indices) */
-          for ( i = 0; i < component_slot->outline.n_contours; i++ )
-          {
-            slot->outline.contours[old_n_contours + i] =
-              component_slot->outline.contours[i] + old_n_points;
-          }
-
-          slot->outline.n_points = new_n_points;
-          slot->outline.n_contours = new_n_contours;
-        }
+        FT_GlyphLoader_Add( gloader );
       }
 
       tt_varc_free_component( face, &component );
     }
 
 
-    /* Outline is already in the correct coordinate system:          */
-    /* - Scaled mode: 26.6 device pixels (from FT_Load_Glyph)      */
-    /* - NO_SCALE: integer font units (from FT_Load_Glyph)          */
-    /* No additional scaling or conversion needed.                   */
+    /* Copy accumulated outline from gloader to glyph slot */
+    {
+      FT_Outline*  base = &gloader->base.outline;
+
+
+      if ( base->n_points > 0 )
+      {
+        slot->outline = *base;
+        slot->format  = FT_GLYPH_FORMAT_OUTLINE;
+      }
+
+      /* Detach outline from gloader so FT_GlyphLoader_Done won't free it */
+      base->points   = NULL;
+      base->tags     = NULL;
+      base->contours = NULL;
+    }
 
     error = FT_Err_Ok;
 
   Cleanup:
+    /* Free glyph loader (outline data was detached above on success) */
+    if ( gloader )
+      FT_GlyphLoader_Done( gloader );
+
     /* Free the temp glyph slot for this recursion level.             */
     /* face->root.glyph points to the temp slot we allocated above;   */
     /* FT_Done_GlyphSlot removes it and restores the previous head.   */
@@ -3103,15 +3088,6 @@ Skip_Axis_Override:
       face->root.internal->transform_delta.x   = 0;
       face->root.internal->transform_delta.y   = 0;
       face->root.internal->transform_flags     = 0;
-    }
-
-    /* Set glyph format if successful */
-    if ( !error )
-    {
-      glyph_slot->format = FT_GLYPH_FORMAT_OUTLINE;
-    }
-    else
-    {
     }
 
     return error;
