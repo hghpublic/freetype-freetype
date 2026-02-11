@@ -592,6 +592,17 @@
     slot->glyph_index = 0;
 
     FT_ZERO( &slot->metrics );
+
+    /* free outline if separately allocated (e.g., by VARC) */
+    if ( slot->outline.flags & FT_OUTLINE_OWNER )
+    {
+      FT_Memory  memory = slot->face->memory;
+
+
+      FT_FREE( slot->outline.points );
+      FT_FREE( slot->outline.tags );
+      FT_FREE( slot->outline.contours );
+    }
     FT_ZERO( &slot->outline );
 
     slot->bitmap.width      = 0;
@@ -665,6 +676,14 @@
 
     if ( clazz->done_slot )
       clazz->done_slot( slot );
+
+    /* free outline if separately allocated (e.g., by VARC) */
+    if ( slot->outline.flags & FT_OUTLINE_OWNER )
+    {
+      FT_FREE( slot->outline.points );
+      FT_FREE( slot->outline.tags );
+      FT_FREE( slot->outline.contours );
+    }
 
     /* free bitmap buffer if needed */
     ft_glyphslot_free_bitmap( slot );
