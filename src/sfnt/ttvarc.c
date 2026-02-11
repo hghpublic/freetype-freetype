@@ -2950,8 +2950,17 @@ Skip_Axis_Override:
       /* Restore parent coordinates and context */
       if ( has_axis_override )
       {
+        FT_Generic  saved_autohint = face->root.autohint;
+
+
+        face->root.autohint.data      = NULL;
+        face->root.autohint.finalizer = NULL;
+
         FT_Set_Var_Blend_Coordinates( (FT_Face)face,
                                        num_coords, parent_coords );
+
+        face->root.autohint = saved_autohint;
+
         context->current_coords = parent_coords;
         context->num_current_coords = num_coords;
 
