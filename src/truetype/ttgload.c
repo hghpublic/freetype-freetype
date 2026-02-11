@@ -2580,6 +2580,18 @@
         }
 #endif
 
+        {
+          FT_BBox  bbox;
+
+
+          FT_Outline_Get_CBox( &glyph->outline, &bbox );
+
+          glyph->metrics.horiBearingX = bbox.xMin;
+          glyph->metrics.horiBearingY = bbox.yMax;
+          glyph->metrics.width        = SUB_LONG( bbox.xMax, bbox.xMin );
+          glyph->metrics.height       = SUB_LONG( bbox.yMax, bbox.yMin );
+        }
+
         if ( load_flags & FT_LOAD_NO_SCALE )
         {
           glyph->metrics.horiAdvance = (FT_Pos)advance_width * 64;
