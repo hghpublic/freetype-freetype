@@ -1359,9 +1359,17 @@
    *   num_deltas ::
    *     Number of deltas expected in the tuple.
    *
+   *   shift ::
+   *     Number of bits to preserve from fractional interpolation.
+   *     The raw integer deltas are effectively shifted left by this
+   *     amount.  Use shift=2 for F2DOT14 data (returns F16DOT16),
+   *     shift=4 for F4DOT12 data (returns F16DOT16), etc.
+   *     Maximum value is 16.
+   *
    * @Output:
    *   deltas ::
    *     Array to store the deltas (must have space for num_deltas).
+   *     Values are raw integer deltas scaled left by `shift` bits.
    *
    * @Return:
    *   FreeType error code. 0 means success.
@@ -1371,7 +1379,8 @@
                            TT_Varc    varc,
                            FT_UInt32  var_index,
                            FT_UInt    num_deltas,
-                           FT_Fixed*  deltas,
+                           FT_Long*   deltas,
+                           FT_UInt    shift,
                            FT_Fixed*  current_coords,
                            FT_UInt    num_coords )
   {
@@ -1672,23 +1681,37 @@
     if ( all_deltas != stack_all_deltas )
       FT_FREE( all_deltas );
 
-    /* Convert 64-bit accumulators back to plain integers with rounding and >> 16 */
-    for ( i = 0; i < num_deltas; i++ )
+    /* Convert 64-bit accumulators to deltas with rounding.            */
+    /* Accumulators hold: raw_int_delta * region_scalar_16.16          */
+    /* We shift right by (16 - shift) to preserve `shift` fractional  */
+    /* bits from the interpolation.                                    */
     {
+      FT_Int  right_shift = 16 - shift;
+      FT_Long rounding    = right_shift > 0 ? ( 1L << ( right_shift - 1 ) )
+                                             : 0;
+
+
+      for ( i = 0; i < num_deltas; i++ )
+      {
 #ifdef FT_INT64
-      /* Round and shift: (accum + 0x8000) >> 16 - back to plain integer */
-      deltas[i] = (FT_Fixed)( ( accumulators[i] + 0x8000L ) >> 16 );
+        deltas[i] = (FT_Long)( ( accumulators[i] + rounding ) >> right_shift );
 #else
-      /* 32-bit fallback */
-      FT_UInt hi = accumulators[i].hi;
-      FT_UInt lo = accumulators[i].lo;
-      /* Add 0x8000 to round */
-      lo += 0x8000;
-      if ( lo < 0x8000 )  /* overflow */
-        hi += 1;
-      /* Shift right by 16 bits */
-      deltas[i] = (FT_Fixed)( ( hi << 16 ) | ( lo >> 16 ) );
+        /* 32-bit fallback */
+        FT_UInt32 hi = accumulators[i].hi;
+        FT_UInt32 lo = accumulators[i].lo;
+
+        /* Add rounding */
+        lo += (FT_UInt32)rounding;
+        if ( lo < (FT_UInt32)rounding )
+          hi += 1;
+        /* Shift right by (16 - shift) bits */
+        if ( right_shift >= 16 )
+          deltas[i] = (FT_Long)hi;
+        else
+          deltas[i] = (FT_Long)( ( hi << ( 16 + shift ) ) |
+                                  ( lo >> right_shift ) );
 #endif
+      }
     }
 
     /* Free accumulators */
@@ -1705,6 +1728,7 @@
     FT_UNUSED( var_index );
     FT_UNUSED( num_deltas );
     FT_UNUSED( deltas );
+    FT_UNUSED( shift );
     FT_UNUSED( current_coords );
     FT_UNUSED( num_coords );
 
@@ -1893,8 +1917,8 @@
   {
 #ifdef TT_CONFIG_OPTION_GX_VAR_SUPPORT
     FT_Error  error;
-    FT_Fixed  stack_deltas[VARC_STACK_DELTA_COUNT];
-    FT_Fixed* deltas = NULL;
+    FT_Long   stack_deltas[VARC_STACK_DELTA_COUNT];
+    FT_Long*  deltas = NULL;
     FT_UInt   i;
     FT_Memory memory = face->root.memory;
 
@@ -1914,29 +1938,18 @@
         return;
     }
 
-    /* Get tuple of deltas from MultiItemVariationStore */
+    /* Get deltas with shift=2: raw F2DOT14 integers are returned  */
+    /* already shifted to F16DOT16, matching axis_values[] format. */
     error = tt_varc_get_item_deltas( face, varc,
                                      component->axis_values_var_index,
                                      component->num_axis_values,
-                                     deltas,
+                                     deltas, 2,
                                      current_coords,
                                      num_coords );
     if ( !error )
     {
-      /* Apply deltas to axis values:
-       * - Deltas are plain integers from tt_varc_get_item_deltas
-       * - They are reinterpreted as F2DOT14 values
-       * - Convert to F16DOT16 by << 2, then add to axis values
-       * - Base values are also in F16DOT16 (F2DOT14 << 2)
-       */
       for ( i = 0; i < component->num_axis_values; i++ )
-      {
-        FT_Fixed delta_f16dot16 = deltas[i] << 2;  /* Reinterpret as F2DOT14, convert to F16DOT16 */
-
-
-        component->axis_values[i] += delta_f16dot16;
-
-      }
+        component->axis_values[i] += deltas[i];
     }
 
     if ( deltas != stack_deltas )
@@ -1978,8 +1991,8 @@
   {
 #ifdef TT_CONFIG_OPTION_GX_VAR_SUPPORT
     FT_Error  error;
-    FT_Fixed  stack_deltas[VARC_STACK_DELTA_COUNT];
-    FT_Fixed* deltas = NULL;
+    FT_Long   stack_deltas[VARC_STACK_DELTA_COUNT];
+    FT_Long*  deltas = NULL;
     FT_UInt   num_deltas = 0;
     FT_UInt   delta_index = 0;
     FT_Memory memory = face->root.memory;
@@ -2014,85 +2027,75 @@
         return;
     }
 
-    /* Get tuple of deltas from MultiItemVariationStore */
+    /* Get deltas with shift=4: raw integers shifted left by 4.       */
+    /* F4DOT12 fields (rotation, skew) become F16DOT16 directly.      */
+    /* FWORD and F6DOT10 fields need an additional << 2 at callsite.  */
     error = tt_varc_get_item_deltas( face, varc,
                                      component->transform_var_index,
                                      num_deltas,
-                                     deltas,
+                                     deltas, 4,
                                      current_coords,
                                      num_coords );
     if ( !error )
     {
-      /* Apply deltas to transform components in order */
+      /* Apply deltas to transform components in order.               */
+      /* Deltas are already shifted left by 4 from get_item_deltas.   */
+      /* F4DOT12 fields (shift=4): add directly (already F16DOT16).   */
+      /* FWORD fields (shift=6):   need << 2 more for 26.6 format.   */
+      /* F6DOT10 fields (shift=6): need << 2 more for F16DOT16.      */
       delta_index = 0;
 
       if ( component->flags & VARC_HAVE_TRANSLATE_X )
       {
-        /* Deltas are in font units (FWORD), convert to 26.6 format */
-        FT_Pos delta_26dot6 = deltas[delta_index] << 6;
-        component->translate_x += delta_26dot6;
+        component->translate_x += deltas[delta_index] << 2;  /* FWORD: 4+2=6 */
         delta_index++;
       }
 
       if ( component->flags & VARC_HAVE_TRANSLATE_Y )
       {
-        /* Deltas are in font units (FWORD), convert to 26.6 format */
-        FT_Pos delta_26dot6 = deltas[delta_index] << 6;
-        component->translate_y += delta_26dot6;
+        component->translate_y += deltas[delta_index] << 2;  /* FWORD: 4+2=6 */
         delta_index++;
       }
 
       if ( component->flags & VARC_HAVE_ROTATION )
       {
-        /* Deltas are in F4DOT12 format, convert to F16DOT16 (shift left 4) */
-        FT_Fixed delta_16dot16 = deltas[delta_index] << 4;
-        component->rotation += delta_16dot16;
+        component->rotation += deltas[delta_index];           /* F4DOT12: already 16.16 */
         delta_index++;
       }
 
       if ( component->flags & VARC_HAVE_SCALE_X )
       {
-        /* Deltas are in F6DOT10 format, convert to F16DOT16 (shift left 6) */
-        FT_Fixed delta_16dot16 = deltas[delta_index] << 6;
-        component->scale_x += delta_16dot16;
+        component->scale_x += deltas[delta_index] << 2;      /* F6DOT10: 4+2=6 */
         delta_index++;
       }
 
       if ( component->flags & VARC_HAVE_SCALE_Y )
       {
-        /* Deltas are in F6DOT10 format, convert to F16DOT16 (shift left 6) */
-        FT_Fixed delta_16dot16 = deltas[delta_index] << 6;
-        component->scale_y += delta_16dot16;
+        component->scale_y += deltas[delta_index] << 2;      /* F6DOT10: 4+2=6 */
         delta_index++;
       }
 
       if ( component->flags & VARC_HAVE_SKEW_X )
       {
-        /* Deltas are in F4DOT12 format, convert to F16DOT16 (shift left 4) */
-        FT_Fixed delta_16dot16 = deltas[delta_index] << 4;
-        component->skew_x += delta_16dot16;
+        component->skew_x += deltas[delta_index];             /* F4DOT12: already 16.16 */
         delta_index++;
       }
 
       if ( component->flags & VARC_HAVE_SKEW_Y )
       {
-        /* Deltas are in F4DOT12 format, convert to F16DOT16 (shift left 4) */
-        FT_Fixed delta_16dot16 = deltas[delta_index] << 4;
-        component->skew_y += delta_16dot16;
+        component->skew_y += deltas[delta_index];             /* F4DOT12: already 16.16 */
         delta_index++;
       }
 
       if ( component->flags & VARC_HAVE_TCENTER_X )
       {
-        /* Deltas already in F16DOT16 from API */
-        component->tcenter_x += deltas[delta_index];
+        component->tcenter_x += deltas[delta_index] << 2;    /* FWORD: 4+2=6 */
         delta_index++;
       }
 
       if ( component->flags & VARC_HAVE_TCENTER_Y )
       {
-        /* Deltas already in F16DOT16 from API */
-        component->tcenter_y += deltas[delta_index];
+        component->tcenter_y += deltas[delta_index] << 2;    /* FWORD: 4+2=6 */
         delta_index++;
       }
     }
