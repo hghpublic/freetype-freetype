@@ -2691,9 +2691,9 @@
       /* Build transformation matrix */
       tt_varc_build_transform( &component, &matrix, &offset );
 
-      /* Load component glyph */
-      /* Save the current glyph slot */
-      FT_GlyphSlot  saved_glyph = face->root.glyph;
+      /* Load component glyph into a temporary slot */
+      /* FT_New_GlyphSlot prepends to face->glyph list;            */
+      /* FT_Done_GlyphSlot removes it, restoring the previous head */
       FT_GlyphSlot  temp_glyph;
 
       error = FT_New_GlyphSlot( (FT_Face)face, &temp_glyph );
@@ -2702,8 +2702,6 @@
         tt_varc_free_component( face, &component );
         goto Cleanup;
       }
-
-      face->root.glyph = temp_glyph;
 
       /* Apply axis value overrides if present */
       FT_Fixed*  new_coords = NULL;
@@ -2874,9 +2872,7 @@ Skip_Axis_Override:
       context->has_parent_transform = saved_has_parent;
 
 
-      /* Restore the original glyph slot */
       component_slot = temp_glyph;
-      face->root.glyph = saved_glyph;
 
 
       if ( error )
