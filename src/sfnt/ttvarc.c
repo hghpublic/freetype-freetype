@@ -2530,6 +2530,70 @@
    *
    */
 
+#ifdef TT_CONFIG_OPTION_GX_VAR_SUPPORT
+
+  /**************************************************************************
+   *
+   * @Function:
+   *   tt_varc_set_normalized_coords
+   *
+   * @Description:
+   *   Lightweight coordinate swap for VARC component loading.
+   *   Unlike FT_Set_Var_Blend_Coordinates, this only sets the normalized
+   *   coordinates and invalidates the gvar tuple scalar cache.  It skips
+   *   CVT reload, MVAR, auto-hinter invalidation, PS name construction,
+   *   and design coordinate computation -- none of which are needed when
+   *   loading VARC components with FT_LOAD_NO_HINTING.
+   */
+  static void
+  tt_varc_set_normalized_coords( TT_Face    face,
+                                 FT_UInt    num_coords,
+                                 FT_Fixed*  coords )
+  {
+    GX_Blend  blend = face->blend;
+    FT_UInt   i;
+
+
+    if ( !blend || !blend->normalizedcoords )
+      return;
+
+    if ( num_coords > blend->num_axis )
+      num_coords = blend->num_axis;
+
+    FT_MEM_COPY( blend->normalizedcoords,
+                 coords,
+                 num_coords * sizeof ( FT_Fixed ) );
+
+    /* Zero out remaining axes */
+    for ( i = num_coords; i < blend->num_axis; i++ )
+      blend->normalizedcoords[i] = 0;
+
+    /* Update doblend flag */
+    face->doblend = FALSE;
+    for ( i = 0; i < blend->num_axis; i++ )
+    {
+      if ( blend->normalizedcoords[i] )
+      {
+        face->doblend = TRUE;
+        break;
+      }
+    }
+
+    /* Update face variation flag so IS_DEFAULT_INSTANCE is correct.  */
+    /* Without this, load_truetype_glyph skips gvar deltas entirely. */
+    if ( face->doblend )
+      face->root.face_flags |= FT_FACE_FLAG_VARIATION;
+    else
+      face->root.face_flags &= ~FT_FACE_FLAG_VARIATION;
+
+    /* Invalidate gvar tuple scalar cache */
+    for ( i = 0; i < blend->tuplecount; i++ )
+      blend->tuplescalars[i] = (FT_Fixed)-0x20000L;
+  }
+
+#endif /* TT_CONFIG_OPTION_GX_VAR_SUPPORT */
+
+
   /**************************************************************************
    *
    * @Function:
@@ -2628,9 +2692,24 @@
           }
           else
           {
+            FT_Generic  saved_autohint = face->root.autohint;
+
+
             /* Set initial current_coords to font_coords */
             context->current_coords = context->font_coords;
             context->num_current_coords = context->num_font_coords;
+
+            /* Force blend initialization: allocate normalizedcoords,    */
+            /* load gvar, etc.  This ensures tt_varc_set_normalized_coords */
+            /* can work as a lightweight coord swap later.                */
+            face->root.autohint.data      = NULL;
+            face->root.autohint.finalizer = NULL;
+
+            FT_Set_Var_Blend_Coordinates( (FT_Face)face,
+                                           context->num_font_coords,
+                                           context->font_coords );
+
+            face->root.autohint = saved_autohint;
           }
         }
       }
@@ -2814,22 +2893,9 @@
             FT_FREE( axis_indices );
         }
 
-        /* Apply the new normalized coordinates.                       */
-        /* Temporarily hide auto-hinter data so that                    */
-        /* FT_Set_Var_Blend_Coordinates doesn't free it; the caller    */
-        /* (e.g. the auto-fitter) may still be using it.               */
-        {
-          FT_Generic  saved_autohint = face->root.autohint;
-
-
-          face->root.autohint.data      = NULL;
-          face->root.autohint.finalizer = NULL;
-
-          error = FT_Set_Var_Blend_Coordinates( (FT_Face)face,
-                                                 num_coords, new_coords );
-
-          face->root.autohint = saved_autohint;
-        }
+        /* Apply the new normalized coordinates.  Use lightweight path   */
+        /* that only swaps coords and invalidates the gvar tuple cache.  */
+        tt_varc_set_normalized_coords( face, num_coords, new_coords );
         has_axis_override = TRUE;
       }
 Skip_Axis_Override:
@@ -2953,19 +3019,10 @@ Skip_Axis_Override:
       }
 
 #ifdef TT_CONFIG_OPTION_GX_VAR_SUPPORT
-      /* Restore parent coordinates and context */
+      /* Restore parent coordinates */
       if ( has_axis_override )
       {
-        FT_Generic  saved_autohint = face->root.autohint;
-
-
-        face->root.autohint.data      = NULL;
-        face->root.autohint.finalizer = NULL;
-
-        FT_Set_Var_Blend_Coordinates( (FT_Face)face,
-                                       num_coords, parent_coords );
-
-        face->root.autohint = saved_autohint;
+        tt_varc_set_normalized_coords( face, num_coords, parent_coords );
 
         context->current_coords = parent_coords;
         context->num_current_coords = num_coords;
@@ -3063,6 +3120,14 @@ Skip_Axis_Override:
     /* Cleanup context if we own it */
     if ( context_owner )
     {
+#ifdef TT_CONFIG_OPTION_GX_VAR_SUPPORT
+      /* Restore font's original coordinates in case we bailed out     */
+      /* mid-component with overridden axis values still active.       */
+      if ( context->font_coords )
+        tt_varc_set_normalized_coords( face,
+                                       context->num_font_coords,
+                                       context->font_coords );
+#endif
       if ( context->font_coords )
         FT_FREE( context->font_coords );
       FT_FREE( context );
