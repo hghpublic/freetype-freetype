@@ -807,19 +807,6 @@
       exec->metrics.x_scale = size->metrics->x_scale;
       exec->metrics.y_scale = size->metrics->y_scale;
     }
-#endif
-
-    /* round phantom points */
-    zone->cur[zone->n_points - 4].x =
-      FT_PIX_ROUND( zone->cur[zone->n_points - 4].x );
-    zone->cur[zone->n_points - 3].x =
-      FT_PIX_ROUND( zone->cur[zone->n_points - 3].x );
-    zone->cur[zone->n_points - 2].y =
-      FT_PIX_ROUND( zone->cur[zone->n_points - 2].y );
-    zone->cur[zone->n_points - 1].y =
-      FT_PIX_ROUND( zone->cur[zone->n_points - 1].y );
-
-#ifdef TT_USE_BYTECODE_INTERPRETER
 
     if ( n_ins > 0 )
     {
@@ -839,8 +826,17 @@
       loader->gloader->current.outline.tags[0] |=
         ( exec->GS.scan_type << 5 ) | FT_CURVE_TAG_HAS_SCANMODE;
     }
+#endif /* TT_USE_BYTECODE_INTERPRETER */
 
-#endif
+    /* round phantom points */
+    zone->cur[zone->n_points - 4].x =
+      FT_PIX_ROUND( zone->cur[zone->n_points - 4].x );
+    zone->cur[zone->n_points - 3].x =
+      FT_PIX_ROUND( zone->cur[zone->n_points - 3].x );
+    zone->cur[zone->n_points - 2].y =
+      FT_PIX_ROUND( zone->cur[zone->n_points - 2].y );
+    zone->cur[zone->n_points - 1].y =
+      FT_PIX_ROUND( zone->cur[zone->n_points - 1].y );
 
     /* Save possibly modified glyph phantom points unless in v40 backward  */
     /* compatibility mode, where no movement on the x axis means no reason */
