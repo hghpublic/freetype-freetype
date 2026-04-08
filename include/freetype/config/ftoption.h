@@ -317,6 +317,64 @@ FT_BEGIN_HEADER
    */
 /* #define FT_CONFIG_OPTION_USE_HARFBUZZ_DYNAMIC */
 
+  /**************************************************************************
+   *
+   * HarfBuzz callbacks support.
+   *
+   *   Define this macro if you want the HarfBuzz library to inject callback
+   *   functions to FreeType
+   *
+   *   This option has no effect if `FT_CONFIG_OPTION_USE_HARFBUZZ` is not
+   *   defined.
+   *
+   *   When this option is enabled, FreeType will not load or link to the 
+   *   HarfBuzz library. Instead, the HarfBuzz library is expected to set
+   *   use property 'harfbuzz-callbacks' to pass callback functions into 
+   *   FreeType.
+   *
+   *   If you use a build system like cmake or the `configure` script,
+   *   options set by those programs have precedence, overwriting the value
+   *   here with the configured one.
+   */
+/* #define FT_CONFIG_OPTION_USE_HARFBUZZ_CALLBACKS */
+
+  /**************************************************************************
+   *
+   * HarfBuzz dynamic/callbacks calling convention.
+   *
+   *   Define this macro if the HarfBuzz library is using cdecl calling
+   *   convention
+   *
+   *   This option has no effect if not using harfbuzz mode 'dynamic' or
+   *   'callbacks'.
+   *
+   *   When this option is enabled, FreeType will consider loaded or 
+   *   injected HarfBuzz-related functions as __cdecl.
+   *
+   *   If you use a build system like cmake or the `configure` script,
+   *   options set by those programs have precedence, overwriting the value
+   *   here with the configured one.
+   */
+/* #define FT_CONFIG_OPTION_USE_HARFBUZZ_CALLING_CONVENTION_CDECL */
+
+  /**************************************************************************
+   *
+   * HarfBuzz dynamic/callbacks calling convention.
+   *
+   *   Define this macro if the HarfBuzz library is using stdcall calling
+   *   convention
+   *
+   *   This option has no effect if not using harfbuzz mode 'dynamic' or
+   *   'callbacks'.
+   *
+   *   When this option is enabled, FreeType will consider loaded or 
+   *   injected HarfBuzz-related functions as __stdcall.
+   *
+   *   If you use a build system like cmake or the `configure` script,
+   *   options set by those programs have precedence, overwriting the value
+   *   here with the configured one.
+   */
+/* #define FT_CONFIG_OPTION_USE_HARFBUZZ_CALLING_CONVENTION_STDCALL */
 
   /**************************************************************************
    *

@@ -131,14 +131,14 @@
       goto Fail;
 
     /* Load all symbols we use. */
-#define HB_EXTERN( ret, name, args )  \
+#define FT_HB_EXTERN( ret, name, args )  \
   {                                   \
     funcs->name = DLSYM( lib, name ); \
     if ( !funcs->name )               \
       goto Fail;                      \
   }
-#include "ft-hb-decls.h"
-#undef HB_EXTERN
+#include <freetype/internal/ft-hb-decls.h>
+#undef FT_HB_EXTERN
 
 #undef DLSYM
 
@@ -179,6 +179,14 @@
 
 #else /* !FT_CONFIG_OPTION_USE_HARFBUZZ_DYNAMIC */
 
+#if defined( FT_CONFIG_OPTION_USE_HARFBUZZ )         && \
+    defined( FT_CONFIG_OPTION_USE_HARFBUZZ_CALLBACKS )
+  FT_LOCAL_DEF( FT_Bool )
+  ft_hb_enabled( struct AF_FaceGlobalsRec_  *globals )
+  {
+    return globals->module->hb_funcs != NULL;
+  }
+#else /* !FT_CONFIG_OPTION_USE_HARFBUZZ_CALLBACKS*/
   FT_LOCAL_DEF( FT_Bool )
   ft_hb_enabled( struct AF_FaceGlobalsRec_  *globals )
   {
@@ -190,6 +198,8 @@
     return FALSE;
 #endif
   }
+
+#endif /* !FT_CONFIG_OPTION_USE_HARFBUZZ_CALLBACKS */
 
 #endif /* !FT_CONFIG_OPTION_USE_HARFBUZZ_DYNAMIC */
 

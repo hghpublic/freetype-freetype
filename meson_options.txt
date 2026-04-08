@@ -24,11 +24,20 @@ option('bzip2',
 
 option('harfbuzz',
   type: 'combo',
-  choices: ['auto', 'enabled', 'dynamic', 'disabled'],
+  choices: ['auto', 'enabled', 'dynamic', 'disabled', 'callbacks'],
   value: 'auto',
   description: 'Use Harfbuzz library to improve auto-hinting;'
                + ' if available, many glyphs not directly addressable'
                + ' by a font\'s character map will be hinted also')
+
+option('harfbuzz_calling_convention',
+  type: 'combo',
+  choices: ['auto', 'stdcall', 'cdecl'],
+  value: 'auto',
+  description: 'Calling-convention for HarfBuzz. Only used when using'
+               + ' harfbuzz=\'dynamic\' or harfbuzz=\'callbacks\'. If'
+               + ' unspecified or set to \'auto\', no specifier will'
+               + ' be added.')
 
 option('mmap',
   type: 'feature',
