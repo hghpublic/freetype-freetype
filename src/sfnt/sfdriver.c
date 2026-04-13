@@ -40,6 +40,10 @@
 #include "ttsvg.h"
 #endif
 
+#ifdef TT_CONFIG_OPTION_VARC
+#include "ttvarc.h"
+#endif
+
 #ifdef TT_CONFIG_OPTION_POSTSCRIPT_NAMES
 #include "ttpost.h"
 #endif
@@ -1256,6 +1260,12 @@
 #define PUT_GPOS_KERNING( a )  NULL
 #endif
 
+#ifdef TT_CONFIG_OPTION_VARC
+#define PUT_VARC_SUPPORT( a )  a
+#else
+#define PUT_VARC_SUPPORT( a )  NULL
+#endif
+
   FT_DEFINE_SFNT_INTERFACE(
     sfnt_interface,
 
@@ -1353,8 +1363,13 @@
                             /* TT_Load_Table_Func      load_svg        */
     PUT_SVG_SUPPORT( tt_face_free_svg ),
                             /* TT_Free_Table_Func      free_svg        */
-    PUT_SVG_SUPPORT( tt_face_load_svg_doc )
+    PUT_SVG_SUPPORT( tt_face_load_svg_doc ),
                             /* TT_Load_Svg_Doc_Func    load_svg_doc    */
+
+    PUT_VARC_SUPPORT( tt_face_load_varc ),
+                            /* TT_Load_Table_Func      load_varc       */
+    PUT_VARC_SUPPORT( tt_face_free_varc )
+                            /* TT_Free_Table_Func      free_varc       */
   )
 
 
