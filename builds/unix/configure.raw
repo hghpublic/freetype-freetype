@@ -189,7 +189,10 @@ if test "x$GCC" = xyes; then
   *)
     XX_ANSIFLAGS=""
 
-    for a in "-pedantic" "-std=c99"
+    # FreeType2 uses GNU extension '__typeof__()',
+    # which is prohibited in strict C99 mode.
+    # Test -std=gnu99 is safe to use.
+    for a in "-pedantic" "-std=c99" "-std=gnu99"
     do
       AC_MSG_CHECKING([$CC compiler flag ${a} to assure ANSI C99 works correctly])
       orig_CFLAGS="${CFLAGS}"
@@ -214,6 +217,10 @@ if test "x$GCC" = xyes; then
         [AC_MSG_RESULT([no])])
       CFLAGS="${orig_CFLAGS}"
     done
+
+    # if both of -std=c99 and -std=gnu99 are acceptable,
+    # use -std=gnu99 only.
+    XX_ANSIFLAGS=`echo ${XX_ANSIFLAGS} | sed 's/-std=c99 -std=gnu99/-std=gnu99/'`
     ;;
   esac
 else
