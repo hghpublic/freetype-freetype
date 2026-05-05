@@ -474,62 +474,49 @@
     /* since it is a stroke-based format                */
     glyph->outline.flags |= FT_OUTLINE_OVERLAP;
 
-    /* Set glyph metrics - get from TrueType infrastructure when possible. */
+    /* Set glyph metrics - prefer TrueType metrics but derive height/box
+    from the rendered outline bbox when available (fixes HVF bbox=too-small). */
     {
       FT_UShort  advance_width = 0;
       FT_Short   left_bearing  = 0;
-
-      TT_Face       tt_face = (TT_Face)face;
-      SFNT_Service  sfnt    = (SFNT_Service)tt_face->sfnt;
-
-
-      /* Get metrics from TrueType tables if available. */
+      FT_BBox    bbox;
+      TT_Face    tt_face = (TT_Face)face;
+      SFNT_Service sfnt = (SFNT_Service)tt_face->sfnt;
+     
+      /* Get metrics from TrueType tables if available for advance/left bearing. */
       if ( sfnt && glyph_index < (FT_UInt)face->root.root.num_glyphs )
-        sfnt->get_metrics( tt_face, 0, glyph_index,
-                           &left_bearing, &advance_width );
+          sfnt->get_metrics( tt_face, 0, glyph_index, &left_bearing, &advance_width );
       else
       {
-        /* Fallback to reasonable defaults. */
-        advance_width = (FT_UShort)( size->metrics.x_ppem );
-        left_bearing  = 0;
+          /* Fallback to reasonable defaults. */
+          advance_width = (FT_UShort)( size->metrics.x_ppem );
       }
+     
+      FT_Outline_Get_CBox( &loader->base.outline, &bbox );
 
-      /* Set up unscaled metrics. */
-      glyph->metrics.width        = advance_width;
-      glyph->metrics.height       = size->metrics.y_ppem;
-      glyph->metrics.horiBearingX = left_bearing;
-      glyph->metrics.horiBearingY = glyph->metrics.height;
-      glyph->metrics.horiAdvance  = advance_width;
+      /* Use bbox to set width/height/horiBearingY if bbox is non-empty.
+          bbox values are in 26.6 fixed units, which matches glyph->metrics. */
+      glyph->metrics.width = bbox.xMax - bbox.xMin;
+      glyph->metrics.height = bbox.yMax - bbox.yMin;
+     
+      glyph->metrics.horiBearingX = bbox.xMin; // left_bearing;
+      glyph->metrics.horiBearingY =  bbox.yMax;
+     
+      glyph->metrics.horiAdvance = advance_width;
       glyph->metrics.vertBearingX = glyph->metrics.width / 2;
       glyph->metrics.vertBearingY = 0;
-      glyph->metrics.vertAdvance  = glyph->metrics.height;
+      glyph->metrics.vertAdvance = glyph->metrics.height;
     }
 
-    /* Scale metrics if scaling was applied      */
-    /* (coordinates already scaled in callback). */
+    /* Apply scaling only to values not derived from the scaled outline bbox if scaling was applied. */
     if ( apply_scaling )
     {
       FT_Size_Metrics*  metrics = &size->metrics;
 
-      
-      /* Scale metrics using size metrics -      */
-      /* coordinates already scaled in callback. */
-      glyph->metrics.width        = FT_MulFix( glyph->metrics.width,
-                                               metrics->x_scale );
-      glyph->metrics.height       = FT_MulFix( glyph->metrics.height,
-                                               metrics->y_scale );
-      glyph->metrics.horiBearingX = FT_MulFix( glyph->metrics.horiBearingX,
-                                               metrics->x_scale );
-      glyph->metrics.horiBearingY = FT_MulFix( glyph->metrics.horiBearingY,
-                                               metrics->y_scale );
+      //glyph->metrics.horiBearingX = FT_MulFix( glyph->metrics.horiBearingX,
+      //                                         metrics->x_scale );
       glyph->metrics.horiAdvance  = FT_MulFix( glyph->metrics.horiAdvance,
-                                               metrics->x_scale );
-      glyph->metrics.vertBearingX = FT_MulFix( glyph->metrics.vertBearingX,
-                                               metrics->x_scale );
-      glyph->metrics.vertBearingY = FT_MulFix( glyph->metrics.vertBearingY,
-                                               metrics->y_scale );
-      glyph->metrics.vertAdvance  = FT_MulFix( glyph->metrics.vertAdvance,
-                                               metrics->y_scale );
+                                                 metrics->x_scale );
     }
 
     /* Cache management - clear cache every */
