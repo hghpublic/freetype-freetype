@@ -5,3 +5,7 @@ src/dlg/dlg.c
 subprojects/*
 !subprojects/*.wrap
 /tests/data/*
+
+
+# macOS
+.DS_Store
